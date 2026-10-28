@@ -60,10 +60,13 @@ def parser():
     actions = youtube.add_subparsers(dest="youtube_command")
     search = actions.add_parser("search", aliases=["s"], help="Search inside the TV's YouTube app")
     search.set_defaults(youtube_command="search")
-    search.add_argument("query", nargs="+", help="Search words, quoted or unquoted")
-    search.add_argument(
-        "--wait", type=seconds, default=argparse.SUPPRESS, help="Screen readiness timeout"
-    )
+    yts = commands.add_parser("yts", help="Search inside the TV's YouTube app")
+    yts.set_defaults(command="youtube", youtube_command="search")
+    for search_command, wait_default in ((search, argparse.SUPPRESS), (yts, 30)):
+        search_command.add_argument("query", nargs="+", help="Search words, quoted or unquoted")
+        search_command.add_argument(
+            "--wait", type=seconds, default=wait_default, help="Screen readiness timeout"
+        )
     return root
 
 

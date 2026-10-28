@@ -36,7 +36,7 @@ tv sc                             # native TV capture saved privately under ~/sc
 tv sc capture.jpg                 # refuses overwrite and checks the actual image format
 tv --json youtube search "chatgpt"
 tv yt                             # short form of youtube
-tv yt s "chatgpt"                  # short form of youtube search
+tv yts "chatgpt"                   # direct shortcut for youtube search
 ```
 
 `youtube`/`yt` and `search`/`s` can be mixed: `tv youtube s "chatgpt"` and

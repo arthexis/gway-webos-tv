@@ -327,6 +327,8 @@ def test_alias_and_unquoted_search_words():
     args = parser().parse_args(["youtube", "search", "chatgpt", "codex"])
     assert validate_query(" ".join(args.query)) == "chatgpt codex"
     assert parser().parse_args(["youtube", "--wait", "60", "search", "chatgpt"]).wait == 60
+    assert parser().parse_args(["yts", "chatgpt"]).wait == 30
+    assert parser().parse_args(["yts", "chatgpt", "--wait", "60"]).wait == 60
 
 
 @pytest.mark.parametrize(
@@ -338,6 +340,7 @@ def test_alias_and_unquoted_search_words():
         (["youtube", "s", "chatgpt", "codex"], "chatgpt codex"),
         (["yt", "search", "chatgpt", "codex"], "chatgpt codex"),
         (["yt", "s", "chatgpt", "codex"], "chatgpt codex"),
+        (["yts", "chatgpt", "codex"], "chatgpt codex"),
     ],
 )
 def test_cli_short_and_long_forms_run_youtube_instead_of_capture(

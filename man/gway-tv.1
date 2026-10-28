@@ -41,6 +41,8 @@ select its first saved profile and wait for the app to become usable.
 An account sign-in challenge requires manual completion.
 .TP
 .BI "youtube search " "query ..." " [--wait seconds]"
+.br
+.BI "yts " "query ..." " [--wait seconds]"
 Aliases: yt for youtube, and s for search. Long and short forms may be mixed.
 Open YouTube, pass its saved-profile chooser if needed, clear the previous
 search, and enter the query using the app's keyboard. Confirm the query and
@@ -82,7 +84,7 @@ Pairing files and screenshot files use mode 0600.
 tv youtube
 tv youtube search "chatgpt"
 tv yt
-tv yt s "chatgpt"
+tv yts "chatgpt"
 tv sc
 tv sc capture.jpg
 gway-tv --host 192.0.2.50 pair
