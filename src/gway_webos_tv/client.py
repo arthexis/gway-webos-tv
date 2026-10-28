@@ -8,9 +8,13 @@ import re
 import socket
 import ssl
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
+import websockets
 from bscpylgtv import WebOsClient
+from websockets.protocol import State
 
+from .images import download_image
 from .state import Device, TVError
 
 # Third-party exceptions may contain protocol payloads. The CLI emits only its own errors.
@@ -196,3 +200,42 @@ class TV:
         await self.call(self.client.launch_app(app))
         foreground = await self.wait_foreground(app, wait)
         return {"app_id": app, "foreground_app": foreground, "verified": True}
+
+    async def capture(self) -> tuple[bytes, str]:
+        capture = await self.call(self.client.take_screenshot())
+        uri = capture.get("imageUri")
+        if not isinstance(uri, str):
+            raise TVError("TV did not return a screenshot URL.")
+        return await asyncio.to_thread(
+            download_image, uri, self.device.host, self.peer.ip, self.peer.context, self.timeout
+        )
+
+    async def press(self, key: str):
+        """Open the input socket explicitly: the SDK silently swallows input errors."""
+        if "CONTROL_MOUSE_AND_KEYBOARD" not in self.device.manifest.get("permissions", []):
+            raise TVError("Remote buttons need input permissions; run tv pair first.")
+        if self.client.input_connection is None:
+            response = await self.call(
+                self.client.request("com.webos.service.networkinput/getPointerInputSocket")
+            )
+            uri = response.get("socketPath")
+            try:
+                url = urlsplit(uri)
+                valid = (
+                    url.scheme == "wss"
+                    and url.hostname in {self.device.host.lower(), self.peer.ip.lower()}
+                    and url.username is None
+                    and url.password is None
+                    and not url.fragment
+                    and (url.port is None or 1 <= url.port <= 65535)
+                )
+            except (ValueError, TypeError, AttributeError):
+                valid = False
+            if not valid:
+                raise TVError("Remote input must use a secure socket on the paired TV.")
+            self.client.input_connection = await self.call(
+                websockets.connect(uri, ssl=self.peer.context, ping_interval=None, close_timeout=2)
+            )
+        await self.call(self.client.button(key))
+        if self.client.input_connection.state != State.OPEN:
+            raise TVError("TV remote input connection closed before completion.")

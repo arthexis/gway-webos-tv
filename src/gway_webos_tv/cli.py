@@ -8,7 +8,7 @@ from pathlib import Path
 
 from . import __version__
 from .client import TV
-from .images import download_image, save_image
+from .images import save_image
 from .state import PERMISSIONS, Device, TVError, default_state_path, load_state, save_state
 
 
@@ -42,7 +42,9 @@ def parser():
     hdmi = commands.add_parser("hdmi", help="Switch to an HDMI input and verify it is active")
     hdmi.add_argument("number", type=int, choices=range(1, 9), metavar="1-8")
     hdmi.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
-    capture = commands.add_parser("screenshot", help="Capture the TV's native screen")
+    capture = commands.add_parser(
+        "screenshot", aliases=["sc"], help="Capture the TV's native screen"
+    )
     capture.add_argument(
         "output", type=Path, nargs="?", help="New JPEG/PNG file (default: ~/screenshots)"
     )
@@ -50,10 +52,27 @@ def parser():
     launch = commands.add_parser("launch", help="Launch an app and verify it is in the foreground")
     launch.add_argument("app_id")
     launch.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
+    youtube = commands.add_parser(
+        "youtube", aliases=["yt"], help="Open YouTube and select the first saved profile"
+    )
+    youtube.set_defaults(command="youtube")
+    youtube.add_argument("--wait", type=seconds, default=30, help="Screen readiness timeout")
+    actions = youtube.add_subparsers(dest="youtube_command")
+    search = actions.add_parser("search", aliases=["s"], help="Search inside the TV's YouTube app")
+    search.set_defaults(youtube_command="search")
+    search.add_argument("query", nargs="+", help="Search words, quoted or unquoted")
+    search.add_argument(
+        "--wait", type=seconds, default=argparse.SUPPRESS, help="Screen readiness timeout"
+    )
     return root
 
 
 async def run(args):
+    if args.command == "youtube":
+        from .youtube import YouTube, validate_query
+
+        query = validate_query(" ".join(args.query)) if args.youtube_command == "search" else None
+        YouTube.check_dependencies()
     pairing = args.command == "pair"
     path = args.state.expanduser()
     device = load_state(path, required=not pairing)
@@ -89,13 +108,9 @@ async def run(args):
             return await tv.hdmi(args.number, args.wait)
         if args.command == "launch":
             return await tv.launch(args.app_id, args.wait)
-        capture = await tv.call(tv.client.take_screenshot())
-        uri = capture.get("imageUri")
-        if not isinstance(uri, str):
-            raise TVError("TV did not return a screenshot URL.")
-        data, extension = await asyncio.to_thread(
-            download_image, uri, device.host, tv.peer.ip, tv.peer.context, args.timeout
-        )
+        if args.command == "youtube":
+            return await YouTube(tv, wait=args.wait).run(query)
+        data, extension = await tv.capture()
         output = save_image(data, extension, args.output)
         return {"path": str(output), "bytes": len(data), "source": "tv", "format": extension[1:]}
     finally:
@@ -111,6 +126,11 @@ def render(result):
             print(f"{item['id']}\t{item['title']}")
     elif "path" in result:
         print(result["path"])
+    elif result.get("screen"):
+        if "query" in result:
+            print(f"YouTube search results: {result['query']}")
+        else:
+            print("YouTube is ready.")
     elif result.get("verified"):
         print(f"Active: {result.get('label') or result.get('app_id')} ({result['foreground_app']})")
     else:
@@ -132,7 +152,8 @@ def main(argv=None):
         if args.json:
             print(json.dumps({"ok": False, "error": message}))
         else:
-            print(f"gway-tv: {message}", file=sys.stderr)
+            program = "tv" if Path(sys.argv[0]).name == "tv" else "gway-tv"
+            print(f"{program}: {message}", file=sys.stderr)
         return 1
     if args.json:
         print(json.dumps(result))

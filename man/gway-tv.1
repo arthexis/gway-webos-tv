@@ -1,7 +1,10 @@
-.TH GWAY-TV 1 "2026-10-27" "gway-webos-tv 0.1.0" "User Commands"
+.TH GWAY-TV 1 "2026-10-28" "gway-webos-tv 0.2.0" "User Commands"
 .SH NAME
-gway-tv \- control a webOS TV and capture its native screen
+tv, gway-tv \- control a webOS TV, navigate YouTube, and capture its native screen
 .SH SYNOPSIS
+.B tv
+.RI [ options ] " command " [ arguments ]
+.br
 .B gway-tv
 .RI [ options ] " command " [ arguments ]
 .SH DESCRIPTION
@@ -23,11 +26,29 @@ List external inputs and connection state.
 Switch to HDMI 1 through 8, then confirm its application is in the foreground.
 The input must exist in the TV's input list.
 .TP
+.BI "sc " [output]
+.br
 .BI "screenshot " [output]
 Download a screenshot produced by the TV, including when it shows an HDMI source.
 Defaults to a unique file under ~/screenshots. The actual format determines the
 extension; existing files are never overwritten. Many TVs return 960x540 JPEG.
 Protected video may be excluded by the TV.
+.TP
+.B youtube [--wait seconds]
+Alias: yt.
+Switch to YouTube when needed. If the saved-profile chooser is displayed,
+select its first saved profile and wait for the app to become usable.
+An account sign-in challenge requires manual completion.
+.TP
+.BI "youtube search " "query ..." " [--wait seconds]"
+Aliases: yt for youtube, and s for search. Long and short forms may be mixed.
+Open YouTube, pass its saved-profile chooser if needed, clear the previous
+search, and enter the query using the app's keyboard. Confirm the query and
+search-results page from native captures before reporting success.
+Search accepts a-z, ñ, digits, spaces, and hyphens, up to 120 characters.
+Navigation supports the classic English/Spanish YouTube TV layout and needs
+local tesseract-ocr with its English language data. An unrecognized screen
+stops navigation and saves a private diagnostic capture under ~/screenshots.
 .TP
 .B apps
 List installed application IDs and names.
@@ -58,6 +79,12 @@ $XDG_STATE_HOME/webos-tv is reused in place when the new default is absent.
 Pairing files and screenshot files use mode 0600.
 .SH EXAMPLES
 .nf
+tv youtube
+tv youtube search "chatgpt"
+tv yt
+tv yt s "chatgpt"
+tv sc
+tv sc capture.jpg
 gway-tv --host 192.0.2.50 pair
 gway-tv inputs
 gway-tv hdmi 2

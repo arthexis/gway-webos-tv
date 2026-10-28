@@ -4,24 +4,25 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gway-webos-tv"
-version = "0.1.0"
+version = "0.2.0"
 description = "GWAY CLI for webOS TV HDMI control and native screenshots"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
-dependencies = ["bscpylgtv>=0.5.4,<0.6", "websockets>=13,<18"]
+dependencies = ["bscpylgtv>=0.5.4,<0.6", "websockets>=13,<18", "Pillow>=10.4,<13"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1", "build>=1,<2"]
 
 [project.scripts]
 gway-tv = "gway_webos_tv.cli:main"
+tv = "gway_webos_tv.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.data-files]
-"share/man/man1" = ["man/gway-tv.1"]
+"share/man/man1" = ["man/gway-tv.1", "man/tv.1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

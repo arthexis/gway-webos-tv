@@ -44,12 +44,17 @@ def tls_context(tmp_path_factory):
 
 
 @asynccontextmanager
-async def emulator(context, *, switch=True):
+async def emulator(context, *, switch=True, input_error=False, foreign_input=False):
     messages = []
     foreground = "com.webos.app.browser"
+    port = 0
 
     async def handler(ws):
         nonlocal foreground
+        if ws.request.path == "/input":
+            async for raw in ws:
+                messages.append({"input": raw})
+            return
         async for raw in ws:
             message = json.loads(raw)
             messages.append(message)
@@ -97,13 +102,28 @@ async def emulator(context, *, switch=True):
                     payload["apps"] = [{"id": "com.webos.app.browser", "title": "Browser"}]
                 elif uri.endswith("system.launcher/launch"):
                     foreground = message["payload"]["id"]
+                elif uri.endswith("getPointerInputSocket"):
+                    if input_error:
+                        await ws.send(
+                            json.dumps(
+                                {
+                                    "id": uid,
+                                    "type": "error",
+                                    "error": "401 test-secret-private-path",
+                                }
+                            )
+                        )
+                        continue
+                    host = "192.0.2.51" if foreign_input else "127.0.0.1"
+                    payload["socketPath"] = f"wss://{host}:{port}/input"
                 response = {"id": uid, "type": "response", "payload": payload}
             await ws.send(json.dumps(response))
 
     logger = logging.getLogger("test.webos.server")
     logger.setLevel(logging.CRITICAL)  # TLS preflight closes before the HTTP upgrade.
     async with serve(handler, "127.0.0.1", 0, ssl=context, logger=logger) as server:
-        yield server.sockets[0].getsockname()[1], messages
+        port = server.sockets[0].getsockname()[1]
+        yield port, messages
 
 
 def test_real_library_pair_status_hdmi_and_native_capture(tls_context):
@@ -173,5 +193,39 @@ def test_sdk_exception_body_is_not_exposed():
         assert "test-secret" not in str(caught.value)
         assert "imageUri" not in str(caught.value)
         assert "denied permission" in str(caught.value)
+
+    asyncio.run(scenario())
+
+
+def test_remote_buttons_use_pinned_input_socket(tls_context):
+    async def scenario():
+        async with emulator(tls_context) as (port, messages):
+            tv = TV(Device("127.0.0.1"), port=port, timeout=3)
+            try:
+                await tv.connect(pair=True)
+                await tv.press("ENTER")
+                await asyncio.sleep(0.05)
+                assert {"input": "type:button\nname:ENTER\n\n"} in messages
+            finally:
+                await tv.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode,match", [("denied", "denied permission"), ("foreign", "paired TV")])
+def test_remote_input_rejects_permission_failures_and_foreign_socket(tls_context, mode, match):
+    async def scenario():
+        async with emulator(
+            tls_context, input_error=mode == "denied", foreign_input=mode == "foreign"
+        ) as (port, messages):
+            tv = TV(Device("127.0.0.1"), port=port, timeout=3)
+            try:
+                await tv.connect(pair=True)
+                with pytest.raises(TVError, match=match) as caught:
+                    await tv.press("ENTER")
+                assert "test-secret" not in str(caught.value)
+                assert not any("input" in message for message in messages)
+            finally:
+                await tv.close()
 
     asyncio.run(scenario())
