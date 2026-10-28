@@ -1,0 +1,73 @@
+.TH GWAY-TV 1 "2026-10-27" "gway-webos-tv 0.1.0" "User Commands"
+.SH NAME
+gway-tv \- control a webOS TV and capture its native screen
+.SH SYNOPSIS
+.B gway-tv
+.RI [ options ] " command " [ arguments ]
+.SH DESCRIPTION
+Uses bscpylgtv over TLS to control a paired TV. Pairing keys stay in an
+owner-only JSON file. Ordinary commands require saved pairing.
+.SH COMMANDS
+.TP
+.B pair
+Pair with the TV specified by --host. Approve its on-screen prompt if shown.
+Saves the client key, certificate fingerprint, model, and permission manifest.
+.TP
+.B status
+Read model, foreground application, and current external input.
+.TP
+.B inputs
+List external inputs and connection state.
+.TP
+.BI "hdmi " number " [--wait seconds]"
+Switch to HDMI 1 through 8, then confirm its application is in the foreground.
+The input must exist in the TV's input list.
+.TP
+.BI "screenshot " [output]
+Download a screenshot produced by the TV, including when it shows an HDMI source.
+Defaults to a unique file under ~/screenshots. The actual format determines the
+extension; existing files are never overwritten. Many TVs return 960x540 JPEG.
+Protected video may be excluded by the TV.
+.TP
+.B apps
+List installed application IDs and names.
+.TP
+.BI "launch " app-id " [--wait seconds]"
+Launch an application and confirm its foreground state.
+.SH OPTIONS
+Global options precede the command.
+.TP
+.BI --state " path"
+Use this private JSON pairing file. GWAY_TV_STATE provides the same default.
+.TP
+.BI --host " address"
+TV IP address or hostname. An existing pairing retains its certificate pin.
+.TP
+.BI --timeout " seconds"
+Per-operation timeout, default 10 seconds. Pair approval allows up to 120 seconds.
+.TP
+.B --json
+Print structured results. Keys and capture URLs are excluded.
+.TP
+.B --version
+Print the package version.
+.SH FILES
+$XDG_STATE_HOME/gway-webos-tv/device.json, or
+~/.local/state/gway-webos-tv/device.json. A sole existing JSON pairing under
+$XDG_STATE_HOME/webos-tv is reused in place when the new default is absent.
+Pairing files and screenshot files use mode 0600.
+.SH EXAMPLES
+.nf
+gway-tv --host 192.0.2.50 pair
+gway-tv inputs
+gway-tv hdmi 2
+gway-tv screenshot
+gway-tv --json status
+gway-tv launch com.webos.app.browser
+.fi
+.SH EXIT STATUS
+0 means the requested operation completed and any foreground change was
+confirmed. 1 means connection, permission, file, or confirmation failure.
+2 means invalid arguments. 130 means interrupted.
+.SH SEE ALSO
+https://github.com/arthexis/gway-webos-tv
