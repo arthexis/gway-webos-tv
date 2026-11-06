@@ -16,23 +16,42 @@ def read_json(argv):
 
 def snapshot():
     hardware = read_json(["/usr/local/bin/gway-remote", "hardware", "--json"])
-    interfaces = read_json(["/usr/sbin/ip", "-4", "-j", "address", "show"])
+    network = read_json(["/usr/local/bin/gway-remote", "network", "--json"])
+    interfaces = None
+    if not (isinstance(network, dict) and network.get("schema") == "gway-remote/network/v1"
+            and isinstance(network.get("interfaces"), dict)):
+        # Transitional fallback while gway-remote/network/v1 rolls out to nodes.
+        interfaces = read_json(["/usr/sbin/ip", "-4", "-j", "address", "show"])
     status = read_json(["/usr/local/bin/ocpp-csms", "status", "--json"])
     active = read_json(["/usr/local/bin/ocpp-csms", "txn", "--active", "--json"])
     last = read_json(["/usr/local/bin/ocpp-csms", "txn", "--last", "--json"])
     host = hardware.get("host", {}) if isinstance(hardware, dict) else {}
     ambient = hardware.get("ambient_temperature", {}) if isinstance(hardware, dict) else {}
     ips = {}
+    if isinstance(network, dict) and network.get("schema") == "gway-remote/network/v1":
+        for name in ("eth0", "wlan0", "wlan1"):
+            item = network.get("interfaces", {}).get(name)
+            if isinstance(item, dict):
+                ips[name] = {
+                    "present": item.get("present") is True,
+                    "up": item.get("up") is True,
+                    "operstate": item.get("operstate"),
+                    "ipv4": item.get("ipv4") if isinstance(item.get("ipv4"), list) else [],
+                }
     if isinstance(interfaces, list):
         for item in interfaces:
             if isinstance(item, dict) and item.get("ifname") in ("wlan0", "wlan1", "eth0"):
-                ips[item["ifname"]] = [
+                ips[item["ifname"]] = {"present": True, "up": "UP" in item.get("flags", []),
+                    "operstate": item.get("operstate"), "ipv4": [
                     x.get("local")
                     for x in item.get("addr_info", [])
                     if isinstance(x, dict)
                     and x.get("family") == "inet"
                     and isinstance(x.get("local"), str)
-                ]
+                ]}
+
+    for name in ("eth0", "wlan0", "wlan1"):
+        ips.setdefault(name, {"present": False, "up": False, "operstate": None, "ipv4": []})
 
     def data(doc, schema):
         return (
