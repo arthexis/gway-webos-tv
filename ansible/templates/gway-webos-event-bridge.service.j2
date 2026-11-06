@@ -1,0 +1,17 @@
+[Unit]
+Description=GWAY webOS TV paired event bridge and monitor
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart={{ gway_webos_repo }}/.venv/bin/python {{ gway_webos_repo }}/scripts/event-bridge.py --listen {{ gway_webos_bridge_listen }} --port {{ gway_webos_bridge_port }} --cert {{ gway_webos_tls_dir }}/cert.pem --key {{ gway_webos_tls_dir }}/key.pem
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=yes
+PrivateTmp=yes
+UMask=0077
+
+[Install]
+WantedBy=default.target
