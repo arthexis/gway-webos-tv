@@ -16,6 +16,7 @@ def read_json(argv):
 
 def snapshot():
     from .github_prs import snapshot as github_snapshot
+    from .deployment_monitor import snapshot as deployment_snapshot
     hardware = read_json(["/usr/local/bin/gway-remote", "hardware", "--json"])
     network = read_json(["/usr/local/bin/gway-remote", "network", "--json"])
     interfaces = None
@@ -104,6 +105,7 @@ def snapshot():
         "type": "monitor.snapshot",
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "github": github_snapshot(),
+        "deployments": deployment_snapshot(),
         "hardware": {
             "available": bool(hardware),
             "ambient_c": ambient.get("celsius"),
