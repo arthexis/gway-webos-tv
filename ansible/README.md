@@ -9,9 +9,9 @@ Run on gway-001 as its normal user after the change is merged into `main`:
 
 ```sh
 cd ~/Repos/gway-webos-tv
-ansible-playbook -i 'gway-001 ansible_connection=local,' \
+ansible-playbook -i 'gway_tv ansible_connection=local,' \
   ansible/deploy.yml -e gway_webos_bridge_listen=10.90.0.2 \
-  --limit gway-001
+  --limit gway_tv
 ```
 
 For remote execution, use an inventory group named `gway_tv` with the target
