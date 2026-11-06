@@ -1,0 +1,17 @@
+[Unit]
+Description=GWAY webOS TV button event bridge
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/gway-webos-tv/bridge.env
+ExecStart=%h/Repos/gway-webos-tv/.venv/bin/python %h/Repos/gway-webos-tv/scripts/event-bridge.py --listen ${GWAY_WEBOS_BRIDGE_LISTEN} --port 8769 --cert %h/.local/share/gway-webos-tv/bridge-tls/cert.pem --key %h/.local/share/gway-webos-tv/bridge-tls/key.pem
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

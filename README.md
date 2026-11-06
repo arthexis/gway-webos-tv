@@ -115,10 +115,79 @@ Use a separate `--state` file to pair another TV.
 The adapter supports bscpylgtv 0.5.x, disables state subscriptions and its
 default SQLite storage, and supplies a pinned SSL context through its
 `_ssl_context` compatibility hook. Local TLS tests exercise the real dependency.
-No service, background worker, router change, or kiosk-rendering change is
-installed by this project.
+The CLI installer does not install the optional event bridge, change the
+router, or alter kiosk rendering.
 
 ## Development
+
+See [the lab TV developer reference](docs/lab-tv.md) for the tested device,
+developer connection, and known limitations.
+
+The `apps/remote-test` developer app displays key events from the TV remote or
+keyboard without suppressing their default behavior. An optional TLS event
+bridge allows the app to send button codes directly to this host. The bridge
+accepts only paired button events; it does not execute actions. The TV must
+resolve the bridge hostname and trust its TLS certificate. Provisioning is
+deployment-specific; see the lab reference for the current host's setup.
+
+Start the bridge on the intended interface with a trusted certificate and key:
+
+```sh
+./run.sh event-bridge.py --listen LOCAL_ADDRESS --cert CERT_PATH --key KEY_PATH
+```
+
+The TV app's `wss://` endpoint is configured at packaging time and is not
+displayed. A configured Watchtower operator can run `gway-tv-pair` in a private
+terminal to generate a six-digit code, or run `./run.sh pair-event-bridge.py`
+on the bridge host. Enter it on the TV with the number buttons and press OK;
+Back erases a digit. If the dialog is closed while disconnected, press OK to
+open it. Codes expire after two minutes, are single-use, and allow at most five
+attempts. The bridge stores a salted hash only during the pairing window. The
+app stores its device credential in local storage; the bridge retains only its
+hash in owner-only state. A new pairing replaces that credential. The Watchtower
+pairing command has a dedicated credential and can only open a pairing window;
+it does not execute other commands. Keep all credentials and private keys out
+of this repository. The TV verifies the TLS certificate.
+
+After a button press, run `./run.sh name-remote-button.py` to review and name
+the most recent event (within five minutes). Names are stored privately under
+`~/.config/gway-webos-tv/`. The bridge returns the saved override for each press,
+and the TV app uses its built-in label when no override exists. Changes apply on
+the next press without reconnecting. The screenshot-based fallback remains available as
+`./run.sh name-remote-button.py --ocr --host TV_ADDRESS` and requires Tesseract.
+System-handled keys may not reach the app, or may exit it before registration.
+
+Use `./run.sh SCRIPT [ARG ...]` to run Python or shell scripts from `scripts/`
+with the repository virtual environment on the path, without activating it.
+
+For the lab app, `./run.sh tv-app.py` builds an IPK in `dist/webos-apps/` using
+the endpoint in the private local `~/.config/gway-webos-tv/app-build.json` file
+(`{"bridge_url": "wss://example.test/path"}`). It stages a copy and leaves
+source files untouched. Existing packages are preserved unless `--replace` is
+provided. Check the current TV without installing, or explicitly install and
+launch, with:
+
+```sh
+./run.sh tv-app.py --check --host TV_ADDRESS
+./run.sh tv-app.py --install --launch --replace --host TV_ADDRESS
+```
+
+The check compares the developer profile's address and reported model with the
+certificate-pinned TV connection. It does not independently attest the SSH host
+key. `--install` changes the TV; `--launch` also changes the foreground app.
+
+For a TV already registered with the webOS CLI, retrieve its developer key and
+check the connection interactively (enable Key Server in the TV's Developer
+Mode app first):
+
+```sh
+./scripts/developer-connect.sh lab-tv
+```
+
+Enter the passphrase displayed on the TV at the prompt. The script defaults to
+the user-local Node and webOS CLI paths used on this host, disables native Node
+add-ons for ARM compatibility, and accepts `WEBOS_NODE_BIN` and `WEBOS_CLI_DIR`
+overrides. The developer key is handled by the CLI, outside this checkout.
 
 ```sh
 uv venv

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GWAY Remote Test</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header><div><p class="eyebrow">GWAY LAB · INPUT DIAGNOSTICS</p><h1>Remote test</h1></div><span class="badge">READY</span></header>
+    <p class="connection">Bridge: <span id="bridge-status">Disconnected</span> <span id="bridge-hint">· Press OK to connect</span></p>
+    <p class="intro">Press a button on the TV remote or keyboard. The latest event appears below.</p>
+    <section class="latest" aria-live="polite">
+      <div><p class="label">LAST BUTTON</p><div id="name" class="key-name">Waiting for input</div><div id="detail" class="detail">Keys handled by the TV may not appear here.</div></div>
+      <div class="code"><p class="label">KEY CODE</p><span id="code">—</span></div>
+    </section>
+    <section class="history"><div class="section-head"><h2>Recent events</h2><span>Newest first</span></div><ol id="events"><li class="empty">No events yet</li></ol></section>
+    <footer>Buttons retain their default behavior. System-handled buttons may exit the app.</footer>
+  </main>
+  <script src="secret-dialog.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
