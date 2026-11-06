@@ -185,13 +185,16 @@ class Bridge:
                     scoped = old.get("scoped", {})
                     if not isinstance(scoped, dict):
                         scoped = {}
-                    scoped[session_digest] = (["monitor.read"] if app == "gway-monitor"
-                                              else ["button.pressed"])
+                    scoped[session_digest] = (
+                        ["monitor.read"] if app == "gway-monitor" else ["button.pressed"]
+                    )
                     write_private(
                         self.directory / "credential.json",
-                        {"sha256": existing[0] if existing else None,
-                         "additional_sha256": existing[1:] if existing else [],
-                         "scoped": scoped},
+                        {
+                            "sha256": existing[0] if existing else None,
+                            "additional_sha256": existing[1:] if existing else [],
+                            "scoped": scoped,
+                        },
                     )
                     (self.directory / "last-button.json").unlink(missing_ok=True)
                 await ws.send(json.dumps({"type": "paired", "credential": credential}))
@@ -200,7 +203,10 @@ class Bridge:
                 session_digest = (
                     hashlib.sha256(value.encode()).hexdigest() if isinstance(value, str) else ""
                 )
-                if not (self.authorized(session_digest, "monitor.read") or self.authorized(session_digest, "button.pressed")):
+                if not (
+                    self.authorized(session_digest, "monitor.read")
+                    or self.authorized(session_digest, "button.pressed")
+                ):
                     await ws.close(1008, "Authentication denied")
                     return
                 await ws.send(json.dumps({"type": "ready"}))
@@ -208,7 +214,10 @@ class Bridge:
                 await ws.close(1008, "Authentication required")
                 return
             async for raw in ws:
-                if not (self.authorized(session_digest, "monitor.read") or self.authorized(session_digest, "button.pressed")):
+                if not (
+                    self.authorized(session_digest, "monitor.read")
+                    or self.authorized(session_digest, "button.pressed")
+                ):
                     await ws.close(1008, "Credential revoked")
                     return
                 data = json.loads(raw)
