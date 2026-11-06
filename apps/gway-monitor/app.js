@@ -37,9 +37,9 @@
     value('model', h.model);
     value('uptime', duration(h.uptime_seconds));
     var memory = h.memory || {}, disk = h.disk || {};
-    value('memory', bytes(memory.used_bytes || memory.used));
-    value('disk', bytes(disk.used_bytes || disk.used));
-    value('disk-free', 'Free: ' + bytes(disk.free_bytes || disk.free));
+    value('memory', typeof memory.used_percent === 'number' ? number(memory.used_percent, '% used') : '—');
+    value('disk', typeof disk.used_percent === 'number' ? number(disk.used_percent, '% used') : '—');
+    value('disk-free', 'Free: ' + bytes(disk.free_bytes));
     var ips = h.interfaces || {};
     ['eth0', 'wlan0', 'wlan1'].forEach(function (id) { value(id, address(ips[id])); });
   }
@@ -63,8 +63,8 @@
       value('chargers', '—'); value('tx-title', 'Current / last transaction');
       value('tx-content', 'Transaction data unavailable'); return;
     }
-    value('server', typeof o.server === 'string' ? o.server : 'Local CSMS');
-    value('storage', typeof o.storage === 'string' ? o.storage : 'CSMS available');
+    value('server', o.server && typeof o.server.state === 'string' ? o.server.state : 'Unknown');
+    value('storage', o.storage && typeof o.storage.database === 'string' ? 'Database: ' + o.storage.database + ' · Transactions: ' + (o.storage.transactions || 'unknown') : 'Storage unavailable');
     value('chargers', String(o.connected_count || 0) + ' / ' + String(o.charger_count || 0));
     if (!o.active_query_ok || !o.last_query_ok) {
       value('tx-content', 'Transaction query unavailable');
