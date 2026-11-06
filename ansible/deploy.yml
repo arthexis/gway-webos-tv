@@ -63,6 +63,16 @@
       args:
         creates: "{{ gway_webos_repo }}/.venv/bin/python"
 
+    - name: Check installed bridge dependency
+      ansible.builtin.command:
+        argv:
+          - "{{ gway_webos_repo }}/.venv/bin/python"
+          - -c
+          - "import gway_webos_tv, websockets, bscpylgtv"
+      register: gway_webos_venv_ready
+      changed_when: false
+      failed_when: false
+
     - name: Install bridge dependencies from checked-out source
       ansible.builtin.command:
         argv:
@@ -73,7 +83,7 @@
           - "{{ gway_webos_repo }}/.venv/bin/python"
           - -e
           - "{{ gway_webos_repo }}"
-      when: gway_webos_checkout.changed
+      when: gway_webos_checkout.changed or gway_webos_venv_ready.rc != 0
 
     - name: Check user-local TV executable
       ansible.builtin.stat:
