@@ -39,6 +39,22 @@ def write_private(path, value):
             os.unlink(temporary)
 
 
+def open_local_pairing_window():
+    """Create a short-lived, single-use pairing code on the bridge host."""
+    code = f"{secrets.randbelow(1000000):06d}"
+    salt = secrets.token_hex(16)
+    write_private(
+        state_directory() / "pending-pairing.json",
+        {
+            "sha256": hashlib.sha256((salt + code).encode()).hexdigest(),
+            "salt": salt,
+            "expires": time.time() + 120,
+            "attempts_remaining": 5,
+        },
+    )
+    return code
+
+
 def button_names_path():
     return (
         Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
