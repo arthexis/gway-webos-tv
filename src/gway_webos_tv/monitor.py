@@ -28,7 +28,8 @@ def snapshot():
     host = hardware.get("host", {}) if isinstance(hardware, dict) else {}
     ambient = hardware.get("ambient_temperature", {}) if isinstance(hardware, dict) else {}
     ips = {}
-    if isinstance(network, dict) and network.get("schema") == "gway-remote/network/v1":
+    if (isinstance(network, dict) and network.get("schema") == "gway-remote/network/v1"
+            and isinstance(network.get("interfaces"), dict)):
         for name in ("eth0", "wlan0", "wlan1"):
             item = network.get("interfaces", {}).get(name)
             if isinstance(item, dict):
