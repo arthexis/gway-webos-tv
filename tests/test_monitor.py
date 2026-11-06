@@ -16,25 +16,42 @@ def test_monitor_snapshot_with_populated_data():
         },
         "ambient_temperature": {"celsius": 24.5},
     }
-    network = {"schema": "gway-remote/network/v1", "interfaces": {
-        "eth0": {"present": True, "up": True, "ipv4": ["192.0.2.10"]},
-        "wlan0": {"present": True, "up": False, "ipv4": []},
-        "wlan1": {"present": False, "up": False, "ipv4": []},
-    }}
-    status = {"schema": "ocpp-csms/status/v1", "data": {
-        "server": "running", "chargers": [
-            {"id": "charger-a", "connected": True},
-            {"id": "charger-b", "connected": False},
-        ]
-    }}
-    active = {"schema": "ocpp-csms/transactions/v1", "data": {"transactions": [
-        {"id": 42, "charger_id": "charger-a", "connector_id": 1,
-         "state": "active", "energy_wh": 1250}
-    ]}}
+    network = {
+        "schema": "gway-remote/network/v1",
+        "interfaces": {
+            "eth0": {"present": True, "up": True, "ipv4": ["192.0.2.10"]},
+            "wlan0": {"present": True, "up": False, "ipv4": []},
+            "wlan1": {"present": False, "up": False, "ipv4": []},
+        },
+    }
+    status = {
+        "schema": "ocpp-csms/status/v1",
+        "data": {
+            "server": "running",
+            "chargers": [
+                {"id": "charger-a", "connected": True},
+                {"id": "charger-b", "connected": False},
+            ],
+        },
+    }
+    active = {
+        "schema": "ocpp-csms/transactions/v1",
+        "data": {
+            "transactions": [
+                {
+                    "id": 42,
+                    "charger_id": "charger-a",
+                    "connector_id": 1,
+                    "state": "active",
+                    "energy_wh": 1250,
+                }
+            ]
+        },
+    }
     last = {"schema": "ocpp-csms/transactions/v1", "data": {"transactions": []}}
-    with patch("gway_webos_tv.monitor.read_json", side_effect=[
-        hardware, network, status, active, last
-    ]) as reader:
+    with patch(
+        "gway_webos_tv.monitor.read_json", side_effect=[hardware, network, status, active, last]
+    ) as reader:
         result = snapshot()
     assert reader.call_count == 5
     assert result["hardware"]["ambient_c"] == 24.5
@@ -59,9 +76,16 @@ def test_monitor_unavailable_is_not_empty():
 def test_monitor_empty_transactions_are_not_unavailable():
     status = {"schema": "ocpp-csms/status/v1", "data": {"chargers": []}}
     empty = {"schema": "ocpp-csms/transactions/v1", "data": {"transactions": []}}
-    with patch("gway_webos_tv.monitor.read_json", side_effect=[
-        {}, {"schema": "gway-remote/network/v1", "interfaces": {}}, status, empty, empty
-    ]):
+    with patch(
+        "gway_webos_tv.monitor.read_json",
+        side_effect=[
+            {},
+            {"schema": "gway-remote/network/v1", "interfaces": {}},
+            status,
+            empty,
+            empty,
+        ],
+    ):
         result = snapshot()
     assert result["ocpp"]["available"] is True
     assert result["ocpp"]["active_query_ok"] is True
@@ -71,11 +95,18 @@ def test_monitor_empty_transactions_are_not_unavailable():
 
 
 def test_legacy_ip_fallback_when_network_command_unavailable():
-    legacy = [{"ifname": "wlan0", "flags": ["UP"], "operstate": "UP",
-               "addr_info": [{"family": "inet", "local": "10.42.0.1"}]}]
-    with patch("gway_webos_tv.monitor.read_json", side_effect=[
-        {"host": {}}, None, legacy, None, None, None
-    ]) as reader:
+    legacy = [
+        {
+            "ifname": "wlan0",
+            "flags": ["UP"],
+            "operstate": "UP",
+            "addr_info": [{"family": "inet", "local": "10.42.0.1"}],
+        }
+    ]
+    with patch(
+        "gway_webos_tv.monitor.read_json",
+        side_effect=[{"host": {}}, None, legacy, None, None, None],
+    ) as reader:
         result = snapshot()
     assert reader.call_count == 6
     assert result["hardware"]["interfaces"]["wlan0"]["ipv4"] == ["10.42.0.1"]
