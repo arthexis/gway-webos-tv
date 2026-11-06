@@ -2,4 +2,4 @@
 
 .pr-card{grid-column:span 3;min-height:90px;padding:12px 20px}.pr-card h2{font-size:18px;margin:0}.pr-card p{margin:6px 0;font-size:18px}
 
-#github .pr-card.selected-card,#deployments .pr-card.selected-card{border-color:#7fe4bd;box-shadow:inset 0 0 0 2px #7fe4bd}
+#github .pr-card.selected-card,#deployments .pr-card.selected-card,#fleet .pr-card.selected-card{border-color:#7fe4bd;box-shadow:inset 0 0 0 2px #7fe4bd}
