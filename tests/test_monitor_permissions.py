@@ -38,10 +38,15 @@ def test_scoped_credentials_and_legacy_migration(tmp_path):
         assert not bridge.authorized(legacy, "monitor.read")
         secret = "123456"
         salt = "abcd"
-        write_private(tmp_path / "pending-pairing.json", {
-            "sha256": hashlib.sha256((salt + secret).encode()).hexdigest(),
-            "salt": salt, "expires": time.time() + 120, "attempts_remaining": 5
-        })
+        write_private(
+            tmp_path / "pending-pairing.json",
+            {
+                "sha256": hashlib.sha256((salt + secret).encode()).hexdigest(),
+                "salt": salt,
+                "expires": time.time() + 120,
+                "attempts_remaining": 5,
+            },
+        )
         ws = Socket({"type": "pair", "secret": secret, "app": "gway-monitor"})
         await bridge.handler(ws)
         assert ws.sent[0]["type"] == "paired"
@@ -50,4 +55,5 @@ def test_scoped_credentials_and_legacy_migration(tmp_path):
         assert not bridge.authorized(digest, "button.pressed")
         assert bridge.authorized(legacy, "button.pressed")
         assert not bridge.authorized(legacy, "monitor.read")
+
     asyncio.run(check())
