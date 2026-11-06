@@ -74,12 +74,20 @@ class Bridge:
                 self.monitor_cached_at = time.monotonic()
             return self.monitor_cache
 
-    def authorized(self, digest):
+    def authorized(self, digest, capability=None):
         try:
             record = json.loads((self.directory / "credential.json").read_text())
             hashes = [record.get("sha256")] + record.get("additional_sha256", [])
-            return any(
+            legacy = any(
                 isinstance(item, str) and hmac.compare_digest(digest, item) for item in hashes
+            )
+            if legacy:
+                return capability != "monitor.read"
+            scoped = record.get("scoped", {})
+            return (
+                isinstance(scoped, dict)
+                and isinstance(scoped.get(digest), list)
+                and capability in scoped[digest]
             )
         except (OSError, ValueError, TypeError, AttributeError):
             return False
@@ -159,6 +167,10 @@ class Bridge:
                         await ws.close(1008, "Pairing denied")
                         return
                     pending_path.unlink(missing_ok=True)
+                    app = message.get("app", "remote-test")
+                    if app not in ("remote-test", "gway-monitor"):
+                        await ws.close(1008, "Unknown application")
+                        return
                     credential = secrets.token_urlsafe(32)
                     try:
                         old = json.loads((self.directory / "credential.json").read_text())
@@ -170,14 +182,16 @@ class Bridge:
                         await ws.close(1008, "Pairing capacity reached")
                         return
                     session_digest = hashlib.sha256(credential.encode()).hexdigest()
+                    scoped = old.get("scoped", {})
+                    if not isinstance(scoped, dict):
+                        scoped = {}
+                    scoped[session_digest] = (["monitor.read"] if app == "gway-monitor"
+                                              else ["button.pressed"])
                     write_private(
                         self.directory / "credential.json",
-                        {
-                            "sha256": existing[0] if existing else session_digest,
-                            "additional_sha256": (existing[1:] + [session_digest])
-                            if existing
-                            else [],
-                        },
+                        {"sha256": existing[0] if existing else None,
+                         "additional_sha256": existing[1:] if existing else [],
+                         "scoped": scoped},
                     )
                     (self.directory / "last-button.json").unlink(missing_ok=True)
                 await ws.send(json.dumps({"type": "paired", "credential": credential}))
@@ -186,7 +200,7 @@ class Bridge:
                 session_digest = (
                     hashlib.sha256(value.encode()).hexdigest() if isinstance(value, str) else ""
                 )
-                if not self.authorized(session_digest):
+                if not (self.authorized(session_digest, "monitor.read") or self.authorized(session_digest, "button.pressed")):
                     await ws.close(1008, "Authentication denied")
                     return
                 await ws.send(json.dumps({"type": "ready"}))
@@ -194,15 +208,21 @@ class Bridge:
                 await ws.close(1008, "Authentication required")
                 return
             async for raw in ws:
-                if not self.authorized(session_digest):
+                if not (self.authorized(session_digest, "monitor.read") or self.authorized(session_digest, "button.pressed")):
                     await ws.close(1008, "Credential revoked")
                     return
                 data = json.loads(raw)
                 if isinstance(data, dict) and data.get("type") == "monitor.read":
+                    if not self.authorized(session_digest, "monitor.read"):
+                        await ws.close(1008, "Capability denied")
+                        return
                     await ws.send(json.dumps(await self.monitor()))
                     continue
                 if not isinstance(data, dict) or data.get("type") != "button.pressed":
                     await ws.close(1008, "Unsupported message")
+                    return
+                if not self.authorized(session_digest, "button.pressed"):
+                    await ws.close(1008, "Capability denied")
                     return
                 code = data.get("code")
                 if type(code) is not int or not 1 <= code <= 65535:
