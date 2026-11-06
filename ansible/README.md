@@ -5,14 +5,23 @@ the Python environment, and the existing TLS WebSocket event bridge (including
 `monitor.read`). It **does not** configure WireGuard, the public edge proxy,
 DNS, firewall, TV pairing, or install/launch apps on the TV.
 
-Run on gway-001 as its normal user after the change is merged into `main`:
+Run on gway-001 as its normal user, from a clean and up-to-date `main`
+checkout. Store only the existing WireGuard listener in the private local
+deployment configuration (never commit it):
 
 ```sh
-cd ~/Repos/gway-webos-tv
-ansible-playbook -i 'gway_tv,' -c local \
-  ansible/deploy.yml -e gway_webos_bridge_listen=10.90.0.2 \
-  --limit gway_tv
+mkdir -p ~/.config/gway-webos-tv
+printf 'GWAY_WEBOS_BRIDGE_LISTEN=10.90.0.2\n' > ~/.config/gway-webos-tv/deploy.env
+chmod 600 ~/.config/gway-webos-tv/deploy.env
+./deploy.sh
 ```
+
+The root `deploy.sh` is the canonical local entrypoint, like OCPP CSMS.
+It refuses root, non-main or dirty checkouts, and a stale checkout relative
+to `origin/main`; serializes runs with a persistent owner lock; and skips
+Ansible entirely when the deployed SHA and listener match and the service
+and CLI pass readiness checks. The successful deployment marker is written
+only after Ansible succeeds. It never modifies network configuration.
 
 For remote execution, use an inventory group named `gway_tv` with the target
 user and pass a node-specific `gway_webos_bridge_listen` via inventory.
