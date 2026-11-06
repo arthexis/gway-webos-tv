@@ -1,21 +1,20 @@
+import asyncio
 from unittest.mock import AsyncMock
 
-import pytest
 
 from gway_webos_tv.cli import render
 from gway_webos_tv.client import TV
 from gway_webos_tv.state import Device
 
 
-@pytest.mark.asyncio
-async def test_apps_include_versions_and_missing_version():
+def test_apps_include_versions_and_missing_version():
     tv = TV(Device("192.0.2.1"))
     tv.client = type("Client", (), {})()
     tv.client.get_apps_all = AsyncMock(return_value=[
         {"id": "com.arthexis.gway.monitor", "title": "GWAY Monitor", "version": "0.1.0"},
         {"id": "com.example.unknown", "title": "Unknown"},
     ])
-    assert await tv.apps() == [
+    assert asyncio.run(tv.apps()) == [
         {"id": "com.arthexis.gway.monitor", "title": "GWAY Monitor", "version": "0.1.0"},
         {"id": "com.example.unknown", "title": "Unknown", "version": None},
     ]
