@@ -143,7 +143,7 @@ def main():
             root = Path(temporary)
             staged = root / "app"
             shutil.copytree(source, staged)
-            if args.app == "remote-test":
+            if args.app in ("remote-test", "gway-monitor"):
                 url = endpoint_from_config(args.config.expanduser())
                 target = staged / "app.js"
                 contents = target.read_text()
