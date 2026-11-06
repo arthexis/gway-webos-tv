@@ -99,7 +99,7 @@
     showConnection('Connecting');
     try { socket = new WebSocket(url); } catch (_) { showConnection('Connection failed'); return; }
     socket.onopen = function () {
-      if (secret) socket.send(JSON.stringify({type: 'pair', secret: secret}));
+      if (secret) socket.send(JSON.stringify({type: 'pair', secret: secret, app: 'gway-monitor'}));
       else if (credential) socket.send(JSON.stringify({type: 'auth', credential: credential}));
       else socket.close();
       secret = '';
