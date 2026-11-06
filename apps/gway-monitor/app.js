@@ -4,7 +4,7 @@
   var credential = localStorage.getItem('gway.monitor.credential') || '';
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0;
-  var selectedCard = {github: 0, deployments: 0};
+  var selectedCard = {github: 0, deployments: 0, fleet: 0};
   var dialog = window.GwaySecretDialog.create({
     onSubmit: function (secret) { connect(secret); },
     onCancel: function () { showConnection('Disconnected'); }
@@ -25,7 +25,7 @@
     if (!Array.isArray(info.ipv4) || !info.ipv4.length) return 'No IPv4 address';
     return info.ipv4.join(', ');
   }
-  function cardsFor(name) { return el(name === 'github' ? 'pr-list' : 'deployment-list').children; }
+  function cardsFor(name) { return el(name === 'github' ? 'pr-list' : name === 'fleet' ? 'fleet-list' : 'deployment-list').children; }
   function highlightCard(name, scroll) {
     var cards = cardsFor(name);
     if (!cards.length) return;
@@ -36,21 +36,21 @@
     if (scroll) cards[selectedCard[name]].scrollIntoView({block: 'nearest', behavior: 'auto'});
   }
   function moveCard(delta) {
-    var name = channel === 2 ? 'github' : 'deployments';
+    var name = channel === 2 ? 'github' : channel === 3 ? 'deployments' : 'fleet';
     var cards = cardsFor(name);
     if (!cards.length) return;
     selectedCard[name] = Math.max(0, Math.min(cards.length - 1, selectedCard[name] + delta));
     highlightCard(name, true);
   }
   function switchChannel(next) {
-    channel = (next + 4) % 4;
-    ['hardware', 'ocpp', 'github', 'deployments'].forEach(function (name, i) {
+    channel = (next % 5 + 5) % 5;
+    ['hardware', 'ocpp', 'github', 'deployments', 'fleet'].forEach(function (name, i) {
       el(name).hidden = channel !== i;
       el('tab-' + name).className = channel === i ? 'selected' : '';
     });
-    value('title', ['Hardware', 'OCPP', 'GitHub PRs', 'Deployments'][channel]);
+    value('title', ['Hardware', 'OCPP', 'GitHub PRs', 'Deployments', 'Fleet'][channel]);
     window.scrollTo(0, 0);
-    if (channel >= 2) highlightCard(channel === 2 ? 'github' : 'deployments', false);
+    if (channel >= 2) highlightCard(channel === 2 ? 'github' : channel === 3 ? 'deployments' : 'fleet', false);
   }
   function renderGithub(g) {
     var node = el('pr-list'); node.textContent = '';
@@ -83,6 +83,23 @@
       card.appendChild(heading); card.appendChild(detail); card.appendChild(state); node.appendChild(card);
     });
     highlightCard('deployments', false);
+  }
+  function renderFleet(f) {
+    var node = el('fleet-list'); node.textContent = '';
+    if (!f || !f.available) { value('fleet-summary', f && f.error ? f.error : 'Fleet inventory unavailable'); return; }
+    var nodes = f.nodes || [];
+    value('fleet-summary', nodes.length + ' enrolled nodes · ' + (f.source || 'Watchtower'));
+    if (!nodes.length) { node.textContent = 'No enrolled nodes'; return; }
+    nodes.forEach(function (item) {
+      var card = document.createElement('article'); card.className = 'pr-card';
+      var heading = document.createElement('h2'); heading.textContent = item.node;
+      var status = document.createElement('p');
+      status.textContent = 'Reachability: ' + item.reachable + ' · Identity: ' + (item.identity_verified ? 'verified' : 'unverified');
+      var observed = document.createElement('p'); observed.className = 'muted';
+      observed.textContent = 'Last observation: ' + (item.observed_at || 'unknown') + ' · Service health: not measured';
+      card.appendChild(heading); card.appendChild(status); card.appendChild(observed); node.appendChild(card);
+    });
+    highlightCard('fleet', false);
   }
   function renderHardware(h) {
     if (!h || h.available !== true) {
@@ -136,7 +153,7 @@
       value('freshness', 'Invalid observation time'); return;
     }
     lastObserved = timestamp; lastReceived = Date.now();
-    renderHardware(msg.hardware); renderOcpp(msg.ocpp); renderGithub(msg.github); renderDeployments(msg.deployments); updateFreshness();
+    renderHardware(msg.hardware); renderOcpp(msg.ocpp); renderGithub(msg.github); renderDeployments(msg.deployments); renderFleet(msg.fleet); updateFreshness();
   }
   function updateFreshness() {
     if (!lastReceived) { value('freshness', 'Waiting for data'); return; }

@@ -1,0 +1,57 @@
+"""Read-only fleet inventory from the authenticated Watchtower MCP endpoint.
+
+The bridge never serves credentials to the TV. Configuration is optional and
+must be provisioned separately; unavailable is not equivalent to offline.
+"""
+import json
+import os
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+_CACHE = None
+_CACHED_AT = 0.0
+
+
+def snapshot():
+    global _CACHE, _CACHED_AT
+    if _CACHE is not None and time.monotonic() - _CACHED_AT < 60:
+        return _CACHE
+    url = os.environ.get('GWAY_FLEET_MCP_URL', '')
+    token_file = os.environ.get('GWAY_FLEET_TOKEN_FILE', '')
+    result = {'available': False, 'source': 'Watchtower MCP node_list', 'nodes': [], 'error': 'Watchtower inventory not configured'}
+    if not url.startswith('https://') or not url.endswith('/mcp') or not token_file:
+        return result
+    try:
+        path = Path(token_file)
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
+            raise ValueError('unsafe token file')
+        token = path.read_text().strip()
+        if not token or len(token) > 4096:
+            raise ValueError('invalid token')
+        request = urllib.request.Request(url, data=json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'node_list','arguments':{}}}).encode(), headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json, text/event-stream'}, method='POST')
+        with urllib.request.urlopen(request, timeout=5) as response:
+            raw = response.read(131073)
+        if len(raw) > 131072:
+            raise ValueError('oversized inventory')
+        data = json.loads(raw)
+        body = data.get('result', {})
+        if 'structuredContent' in body:
+            inventory = body['structuredContent']
+        else:
+            blocks = body.get('content', [])
+            inventory = json.loads(next(x['text'] for x in blocks if x.get('type') == 'text'))
+        if inventory.get('source') != 'watchtower-enrollment-ledger' or not isinstance(inventory.get('nodes'), list):
+            raise ValueError('invalid inventory')
+        nodes = []
+        for row in inventory['nodes'][:100]:
+            if not isinstance(row, dict) or not isinstance(row.get('node'), str):
+                continue
+            nodes.append({'node': row['node'][:64], 'reachable': row.get('reachable') if row.get('reachable') in ('reachable','unknown') else 'unknown', 'identity_verified': row.get('identity_verified') is True, 'observed_at': row.get('observed_at') if isinstance(row.get('observed_at'), str) else None})
+        result = {'available': True, 'source': 'Watchtower MCP node_list', 'nodes': nodes, 'observed_at': inventory.get('generated_at')}
+    except (OSError, ValueError, KeyError, StopIteration, TypeError, urllib.error.URLError):
+        result['error'] = 'Authenticated Watchtower inventory unavailable'
+    if result['available']:
+        _CACHE, _CACHED_AT = result, time.monotonic()
+    return result
