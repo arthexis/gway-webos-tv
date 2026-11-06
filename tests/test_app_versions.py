@@ -1,7 +1,6 @@
 import asyncio
 from unittest.mock import AsyncMock
 
-
 from gway_webos_tv.cli import render
 from gway_webos_tv.client import TV
 from gway_webos_tv.state import Device
