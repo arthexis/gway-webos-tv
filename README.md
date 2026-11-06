@@ -170,11 +170,14 @@ launch, with:
 ```sh
 ./run.sh tv-app.py --check --host TV_ADDRESS
 ./run.sh tv-app.py --install --launch --replace --host TV_ADDRESS
+./run.sh tv-app.py gway-monitor --install --replace --host TV_ADDRESS
+./run.sh tv-app.py remote-test gway-monitor --install --replace --host TV_ADDRESS
+./run.sh tv-app.py all --install --replace --host TV_ADDRESS
 ```
 
 The check compares the developer profile's address and reported model with the
 certificate-pinned TV connection. It does not independently attest the SSH host
-key. `--install` changes the TV; `--launch` also changes the foreground app.
+key. `--install` changes the TV; `--launch` also changes the foreground app and requires exactly one selected app. With no app argument, `remote-test` remains the default. `all` selects every app directory in `apps/`.
 
 For a TV already registered with the webOS CLI, retrieve its developer key and
 check the connection interactively (enable Key Server in the TV's Developer
