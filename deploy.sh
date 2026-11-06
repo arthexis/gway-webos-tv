@@ -54,8 +54,9 @@ esac
 
 marker="$state_dir/deployed.sha"
 current=$(cat "$marker" 2>/dev/null || true)
+release_key="$local_sha $listen"
 runtime_dir="/run/user/$(id -u)"
-if [ "$current" = "$local_sha" ] &&
+if [ "$current" = "$release_key" ] &&
     [ -x "$HOME/.local/bin/tv" ] &&
     [ -x "$HOME/.local/bin/gway-tv" ] &&
     XDG_RUNTIME_DIR="$runtime_dir" systemctl --user is-active --quiet gway-webos-event-bridge.service &&
