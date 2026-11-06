@@ -4,6 +4,7 @@
   var credential = localStorage.getItem('gway.monitor.credential') || '';
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0;
+  var selectedCard = {github: 0, deployments: 0};
   var dialog = window.GwaySecretDialog.create({
     onSubmit: function (secret) { connect(secret); },
     onCancel: function () { showConnection('Disconnected'); }
@@ -24,6 +25,23 @@
     if (!Array.isArray(info.ipv4) || !info.ipv4.length) return 'No IPv4 address';
     return info.ipv4.join(', ');
   }
+  function cardsFor(name) { return el(name === 'github' ? 'pr-list' : 'deployment-list').children; }
+  function highlightCard(name, scroll) {
+    var cards = cardsFor(name);
+    if (!cards.length) return;
+    selectedCard[name] = Math.max(0, Math.min(selectedCard[name], cards.length - 1));
+    Array.prototype.forEach.call(cards, function (card, i) {
+      card.classList.toggle('selected-card', i === selectedCard[name]);
+    });
+    if (scroll) cards[selectedCard[name]].scrollIntoView({block: 'nearest', behavior: 'auto'});
+  }
+  function moveCard(delta) {
+    var name = channel === 2 ? 'github' : 'deployments';
+    var cards = cardsFor(name);
+    if (!cards.length) return;
+    selectedCard[name] = Math.max(0, Math.min(cards.length - 1, selectedCard[name] + delta));
+    highlightCard(name, true);
+  }
   function switchChannel(next) {
     channel = (next + 4) % 4;
     ['hardware', 'ocpp', 'github', 'deployments'].forEach(function (name, i) {
@@ -31,6 +49,8 @@
       el('tab-' + name).className = channel === i ? 'selected' : '';
     });
     value('title', ['Hardware', 'OCPP', 'GitHub PRs', 'Deployments'][channel]);
+    window.scrollTo(0, 0);
+    if (channel >= 2) highlightCard(channel === 2 ? 'github' : 'deployments', false);
   }
   function renderGithub(g) {
     var node = el('pr-list'); node.textContent = '';
@@ -46,6 +66,7 @@
       status.textContent = (pr.draft ? 'Draft' : 'Open') + ' · CI: ' + pr.ci + ' · Merge: ' + (pr.merge || 'unknown');
       card.appendChild(heading); card.appendChild(title); card.appendChild(status); node.appendChild(card);
     });
+    highlightCard('github', false);
   }
   function renderDeployments(d) {
     var node = el('deployment-list'); node.textContent = '';
@@ -61,6 +82,7 @@
       state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '');
       card.appendChild(heading); card.appendChild(detail); card.appendChild(state); node.appendChild(card);
     });
+    highlightCard('deployments', false);
   }
   function renderHardware(h) {
     if (!h || h.available !== true) {
@@ -162,7 +184,8 @@
   document.addEventListener('keydown', function (event) {
     if (dialog.isOpen()) return;
     var code = event.keyCode || event.which;
-    if (code === 33 || code === 34) { switchChannel(channel + (code === 33 ? -1 : 1)); return; }
+    if (code === 33 || code === 34) { event.preventDefault(); switchChannel(channel + (code === 33 ? -1 : 1)); return; }
+    if ((code === 38 || code === 40) && channel >= 2) { event.preventDefault(); moveCard(code === 38 ? -1 : 1); return; }
     if (!ready && code === 13 && url) { event.preventDefault(); dialog.open(); }
   });
   switchChannel(0);
