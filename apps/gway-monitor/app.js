@@ -25,12 +25,27 @@
     return info.ipv4.join(', ');
   }
   function switchChannel(next) {
-    channel = next;
-    el('hardware').hidden = channel !== 0;
-    el('ocpp').hidden = channel !== 1;
-    el('tab-hardware').className = channel === 0 ? 'selected' : '';
-    el('tab-ocpp').className = channel === 1 ? 'selected' : '';
-    value('title', channel === 0 ? 'Hardware' : 'OCPP');
+    channel = (next + 3) % 3;
+    ['hardware', 'ocpp', 'github'].forEach(function (name, i) {
+      el(name).hidden = channel !== i;
+      el('tab-' + name).className = channel === i ? 'selected' : '';
+    });
+    value('title', ['Hardware', 'OCPP', 'GitHub PRs'][channel]);
+  }
+  function renderGithub(g) {
+    var node = el('pr-list'); node.textContent = '';
+    if (!g) { value('pr-summary', 'Unavailable'); return; }
+    var prs = g.pull_requests || [];
+    value('pr-summary', prs.length + ' open PRs · ' + (g.repositories || []).length + ' repos' + (g.errors && g.errors.length ? ' · Errors: ' + g.errors.join(', ') : ''));
+    if (!prs.length) { node.textContent = g.errors && g.errors.length ? 'GitHub data unavailable' : 'No open PRs'; return; }
+    prs.forEach(function (pr) {
+      var card = document.createElement('article'); card.className = 'pr-card';
+      var heading = document.createElement('h2'); heading.textContent = pr.repo + ' #' + pr.number;
+      var title = document.createElement('p'); title.textContent = pr.title;
+      var status = document.createElement('p'); status.className = 'muted';
+      status.textContent = (pr.draft ? 'Draft' : 'Open') + ' · CI: ' + pr.ci + ' · Merge: ' + (pr.merge || 'unknown');
+      card.appendChild(heading); card.appendChild(title); card.appendChild(status); node.appendChild(card);
+    });
   }
   function renderHardware(h) {
     if (!h || h.available !== true) {
@@ -84,7 +99,7 @@
       value('freshness', 'Invalid observation time'); return;
     }
     lastObserved = timestamp; lastReceived = Date.now();
-    renderHardware(msg.hardware); renderOcpp(msg.ocpp); updateFreshness();
+    renderHardware(msg.hardware); renderOcpp(msg.ocpp); renderGithub(msg.github); updateFreshness();
   }
   function updateFreshness() {
     if (!lastReceived) { value('freshness', 'Waiting for data'); return; }
@@ -132,7 +147,7 @@
   document.addEventListener('keydown', function (event) {
     if (dialog.isOpen()) return;
     var code = event.keyCode || event.which;
-    if (code === 33 || code === 34) { switchChannel(code === 33 ? 0 : 1); return; }
+    if (code === 33 || code === 34) { switchChannel(channel + (code === 33 ? -1 : 1)); return; }
     if (!ready && code === 13 && url) { event.preventDefault(); dialog.open(); }
   });
   switchChannel(0);
