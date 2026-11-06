@@ -194,7 +194,10 @@ class TV:
 
     async def apps(self) -> list[dict]:
         apps = await self.call(self.client.get_apps_all())
-        return [{"id": x.get("id"), "title": x.get("title")} for x in apps or []]
+        return [
+            {"id": x.get("id"), "title": x.get("title"), "version": x.get("version")}
+            for x in apps or []
+        ]
 
     async def launch(self, app: str, wait: float) -> dict:
         await self.call(self.client.launch_app(app))

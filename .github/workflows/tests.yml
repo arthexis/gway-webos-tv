@@ -1,4 +1,4 @@
-name: tests
+name: CI
 on:
   push:
     branches: [main]
@@ -7,8 +7,10 @@ permissions:
   contents: read
 jobs:
   test:
+    name: Python ${{ matrix.python }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python: ['3.11', '3.13']
     steps:
@@ -16,9 +18,40 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: python -m pip install -e '.[dev]'
-      - run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: python -m pytest
-      - run: python -m build
+      - name: Install dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Install OCR dependencies
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+      - name: Run tests
+        run: python -m pytest
+      - name: Build distribution
+        run: python -m build
+  deploy:
+    name: Deployment validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deploy.sh executable and shell syntax
+        run: |
+          test "$(git ls-files --stage deploy.sh | awk '{print $1}')" = 100755
+          test -x deploy.sh
+          sh -n deploy.sh tests/test_deploy_marker.sh
+      - name: Check deploy marker regression
+        run: sh tests/test_deploy_marker.sh
+      - name: Validate Ansible playbook syntax
+        run: |
+          python -m pip install ansible-core
+          ansible-playbook -i 'gway_tv,' -c local ansible/deploy.yml --syntax-check
+  ci:
+    name: CI
+    if: always()
+    needs: [test, deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful checks
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+        run: |
+          test "$TEST_RESULT" = success
+          test "$DEPLOY_RESULT" = success
