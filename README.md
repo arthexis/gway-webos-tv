@@ -137,9 +137,8 @@ Start the bridge on the intended interface with a trusted certificate and key:
 ```
 
 The TV app's `wss://` endpoint is configured at packaging time and is not
-displayed. A configured Watchtower operator can run `gway-tv-pair` in a private
-terminal to generate a six-digit code, or run `./run.sh pair-event-bridge.py`
-on the bridge host. Enter it on the TV with the number buttons and press OK;
+displayed. On the bridge host, run `tv pair --code` in a private interactive terminal
+to generate a six-digit code (or use `./run.sh pair-event-bridge.py`). Enter it on the TV with the number buttons and press OK;
 Back erases a digit. If the dialog is closed while disconnected, press OK to
 open it. Codes expire after two minutes, are single-use, and allow at most five
 attempts. The bridge stores a salted hash only during the pairing window. The
