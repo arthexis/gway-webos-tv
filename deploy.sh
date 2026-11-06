@@ -71,6 +71,6 @@ ansible-playbook "$ROOT/ansible/deploy.yml" -i 'gway_tv,' -c local \
     -e "gway_webos_bridge_listen=$listen"
 # A marker is only written after Ansible's post-install checks succeed.
 temp="$state_dir/.deployed.sha.$$"
-(umask 077; printf '%s\n' "$local_sha" > "$temp")
+(umask 077; printf '%s\n' "$release_key" > "$temp")
 mv -f "$temp" "$marker"
 echo "GWAY TV deployed main SHA $local_sha in $(($(date +%s) - started))s"
