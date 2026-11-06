@@ -18,7 +18,12 @@
     return Math.floor(seconds / 86400) + 'd ' + Math.floor(seconds % 86400 / 3600) + 'h';
   }
   function bytes(n) { return typeof n === 'number' && n >= 0 ? (n / 1073741824).toFixed(1) + ' GiB' : '—'; }
-  function address(list) { return Array.isArray(list) && list.length ? list.join(', ') : 'Unavailable'; }
+  function address(info) {
+    if (!info || info.present !== true) return 'Not installed';
+    if (info.up !== true) return 'Down';
+    if (!Array.isArray(info.ipv4) || !info.ipv4.length) return 'No IPv4 address';
+    return info.ipv4.join(', ');
+  }
   function switchChannel(next) {
     channel = next;
     el('hardware').hidden = channel !== 0;
