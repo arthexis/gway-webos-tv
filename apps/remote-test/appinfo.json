@@ -1,0 +1,10 @@
+{
+  "id": "com.arthexis.gway.remotetest",
+  "version": "0.5.0",
+  "vendor": "Arthexis",
+  "type": "web",
+  "main": "index.html",
+  "title": "GWAY Remote Test",
+  "icon": "icon.png",
+  "requiredACG": []
+}

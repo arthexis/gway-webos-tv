@@ -15,6 +15,8 @@ htmlcov/
 *.jpg
 *.jpeg
 *.png
+!apps/remote-test/icon.png
+!apps/gway-monitor/icon.png
 device.json
 credentials*.json
 screenshots/
