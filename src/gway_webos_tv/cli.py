@@ -48,7 +48,7 @@ def parser():
     capture.add_argument(
         "output", type=Path, nargs="?", help="New JPEG/PNG file (default: ~/screenshots)"
     )
-    commands.add_parser("apps", help="List installed app IDs and names")
+    commands.add_parser("apps", help="List installed app IDs, names and versions")
     launch = commands.add_parser("launch", help="Launch an app and verify it is in the foreground")
     launch.add_argument("app_id")
     launch.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
@@ -126,7 +126,7 @@ def render(result):
             print(f"{item['id']}\t{item['label']}\tconnected={item['connected']}")
     elif "apps" in result:
         for item in result["apps"]:
-            print(f"{item['id']}\t{item['title']}")
+            print(f"{item['id']}\t{item['title']}\tversion={item['version'] or 'unknown'}")
     elif "path" in result:
         print(result["path"])
     elif result.get("screen"):
