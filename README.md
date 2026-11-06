@@ -137,7 +137,7 @@ Start the bridge on the intended interface with a trusted certificate and key:
 ```
 
 The TV app's `wss://` endpoint is configured at packaging time and is not
-displayed. On the bridge host, run `tv pair bridge` in a private interactive terminal
+displayed. On the bridge host, run `tv pair --code` in a private interactive terminal
 to generate a six-digit code (or use `./run.sh pair-event-bridge.py`). Enter it on the TV with the number buttons and press OK;
 Back erases a digit. If the dialog is closed while disconnected, press OK to
 open it. Codes expire after two minutes, are single-use, and allow at most five

@@ -37,7 +37,7 @@ def parser():
     root.add_argument("--json", action="store_true", help="Print machine-readable results")
     commands = root.add_subparsers(dest="command", required=True)
     pair = commands.add_parser("pair", help="Pair TV control or open a local GWAY Monitor pairing window")
-    pair.add_argument("target", nargs="?", choices=("tv", "bridge"), default="tv", help="tv (default): TV control; bridge: six-digit app code")
+    pair.add_argument("--code", action="store_true", help="Generate a six-digit GWAY Monitor pairing code locally")
     commands.add_parser("status", help="Read TV identity and foreground input/app")
     commands.add_parser("inputs", help="List the TV's external inputs")
     hdmi = commands.add_parser("hdmi", help="Switch to an HDMI input and verify it is active")
@@ -77,7 +77,7 @@ async def run(args):
 
         query = validate_query(" ".join(args.query)) if args.youtube_command == "search" else None
         YouTube.check_dependencies()
-    if args.command == "pair" and args.target == "bridge":
+    if args.command == "pair" and args.code:
         if args.json or not sys.stdout.isatty():
             raise TVError("Bridge pairing codes require a private interactive terminal.")
         from .event_bridge import open_local_pairing_window

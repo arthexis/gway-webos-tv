@@ -62,7 +62,7 @@ workaround is host-specific and does not prove every CLI operation works.
   The private-hop certificate requires coordinated rotation at both endpoints
   before expiry, and the edge and firewall changes must be reconciled with their
   owning deployment configuration to avoid being overwritten.
-- The bridge host command `tv pair bridge` opens a two-minute pairing
+- The bridge host command `tv pair --code` opens a two-minute pairing
   window locally and displays the code only on an interactive terminal. App 0.4.0 uses a number-key dialog;
   simulated key events completed pairing, while physical number keys have not
   yet been checked on this TV. Existing pairings reconnect without a new code.
