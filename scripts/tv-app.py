@@ -95,7 +95,7 @@ def verify_device(device, host):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("app", nargs="?", default="remote-test", help="App directory name in apps/")
+    p.add_argument("apps", nargs="*", default=None, help="App directory names in apps/, or all")
     p.add_argument(
         "--config",
         type=Path,
@@ -126,72 +126,82 @@ def main():
         if args.check:
             verify_device(args.device, args.host)
             return 0
-        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.app):
-            raise ValueError("Use an app directory name from apps/")
-        source = ROOT / "apps" / args.app
-        if not source.is_dir() or any(x.is_symlink() for x in source.rglob("*")):
-            raise ValueError("App directory missing or contains symlinks")
-        meta = json.loads((source / "appinfo.json").read_text())
-        app_id, version = meta["id"], meta["version"]
-        if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", app_id) or not re.fullmatch(
-            r"\d+\.\d+\.\d+", version
-        ):
-            raise ValueError("Invalid app ID or version")
+        selected = args.apps or ["remote-test"]
+        if "all" in selected:
+            if len(selected) != 1:
+                raise ValueError("all cannot be combined with app names")
+            selected = sorted(p.name for p in (ROOT / "apps").iterdir() if p.is_dir())
+        if len(set(selected)) != len(selected):
+            raise ValueError("Duplicate app selection")
+        if args.launch and len(selected) != 1:
+            raise ValueError("--launch requires exactly one selected app")
         if args.install:
             verify_device(args.device, args.host)
-        with tempfile.TemporaryDirectory(prefix="gway-webos-build-") as temporary:
-            root = Path(temporary)
-            staged = root / "app"
-            shutil.copytree(source, staged)
-            if args.app in ("remote-test", "gway-monitor"):
-                url = endpoint_from_config(args.config.expanduser())
-                target = staged / "app.js"
-                contents = target.read_text()
-                old = "var url = localStorage.getItem('gway.bridge.url') || '';"
-                if contents.count(old) != 1:
-                    raise ValueError("App endpoint injection point is missing or ambiguous")
-                target.write_text(
-                    contents.replace(
-                        old,
-                        "var url = localStorage.getItem('gway.bridge.url') || "
-                        + json.dumps(url)
-                        + ";",
+        for app in selected:
+            if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", app):
+                raise ValueError("Use an app directory name from apps/")
+            source = ROOT / "apps" / app
+            if not source.is_dir() or any(x.is_symlink() for x in source.rglob("*")):
+                raise ValueError("App directory missing or contains symlinks")
+            meta = json.loads((source / "appinfo.json").read_text())
+            app_id, version = meta["id"], meta["version"]
+            if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", app_id) or not re.fullmatch(
+                r"\d+\.\d+\.\d+", version
+            ):
+                raise ValueError("Invalid app ID or version")
+            with tempfile.TemporaryDirectory(prefix="gway-webos-build-") as temporary:
+                root = Path(temporary)
+                staged = root / "app"
+                shutil.copytree(source, staged)
+                if app in ("remote-test", "gway-monitor"):
+                    url = endpoint_from_config(args.config.expanduser())
+                    target = staged / "app.js"
+                    contents = target.read_text()
+                    old = "var url = localStorage.getItem('gway.bridge.url') || '';"
+                    if contents.count(old) != 1:
+                        raise ValueError("App endpoint injection point is missing or ambiguous")
+                    target.write_text(
+                        contents.replace(
+                            old,
+                            "var url = localStorage.getItem('gway.bridge.url') || "
+                            + json.dumps(url)
+                            + ";",
+                        )
                     )
-                )
-            command("ares-package", "-o", root, staged)
-            package = root / f"{app_id}_{version}_all.ipk"
-            if not package.is_file():
-                raise ValueError("Expected webOS package was not created")
-            args.output_dir.mkdir(parents=True, exist_ok=True)
-            destination = args.output_dir / package.name
-            if args.replace:
-                fd, temporary_output = tempfile.mkstemp(
-                    prefix=".webos-package-", dir=args.output_dir
-                )
-                try:
-                    with package.open("rb") as source_file, os.fdopen(fd, "wb") as output:
+                command("ares-package", "-o", root, staged)
+                package = root / f"{app_id}_{version}_all.ipk"
+                if not package.is_file():
+                    raise ValueError("Expected webOS package was not created")
+                args.output_dir.mkdir(parents=True, exist_ok=True)
+                destination = args.output_dir / package.name
+                if args.replace:
+                    fd, temporary_output = tempfile.mkstemp(
+                        prefix=".webos-package-", dir=args.output_dir
+                    )
+                    try:
+                        with package.open("rb") as source_file, os.fdopen(fd, "wb") as output:
+                            shutil.copyfileobj(source_file, output)
+                        os.replace(temporary_output, destination)
+                    finally:
+                        if os.path.exists(temporary_output):
+                            os.unlink(temporary_output)
+                else:
+                    with package.open("rb") as source_file, destination.open("xb") as output:
                         shutil.copyfileobj(source_file, output)
-                    os.replace(temporary_output, destination)
-                finally:
-                    if os.path.exists(temporary_output):
-                        os.unlink(temporary_output)
-            else:
-                with package.open("rb") as source_file, destination.open("xb") as output:
-                    shutil.copyfileobj(source_file, output)
-        print(f"Package: {destination}")
-        if args.install:
-            command("ares-install", "--device", args.device, destination)
-            print("Installed on TV")
-        if args.launch:
-            command("ares-launch", "--device", args.device, app_id)
-            deadline = time.monotonic() + 30
-            while time.monotonic() < deadline:
-                if tv_status(args.host).get("foreground_app") == app_id:
-                    print("Confirmed app in TV foreground")
-                    break
-                time.sleep(1)
-            else:
-                raise ValueError("TV did not confirm the app in the foreground")
+            print(f"Package: {destination}")
+            if args.install:
+                command("ares-install", "--device", args.device, destination)
+                print("Installed on TV")
+            if args.launch:
+                command("ares-launch", "--device", args.device, app_id)
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    if tv_status(args.host).get("foreground_app") == app_id:
+                        print("Confirmed app in TV foreground")
+                        break
+                    time.sleep(1)
+                else:
+                    raise ValueError("TV did not confirm the app in the foreground")
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as e:
         print(f"tv-app: {e}", file=sys.stderr)
         return 1
