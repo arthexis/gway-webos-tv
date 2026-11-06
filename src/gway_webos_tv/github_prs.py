@@ -4,7 +4,7 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
-REPOS = ('arthexis/gway-remote', 'arthexis/ocpp-csms', 'arthexis/ocpp-reports', 'arthexis/gway-webos-tv', 'arthexis/gway-agent-ops')
+REPOS = ('arthexis/gway-remote', 'arthexis/ocpp-csms', 'arthexis/ocpp-reports', 'arthexis/gway-webos-tv', 'arthexis/gway-agent-ops', 'arthexis/gway-rfid', 'arthexis/gway-lcd-sound', 'arthexis/gway-lcd', 'arthexis/gway-sound', 'arthexis/ocpp-simulator')
 
 
 _cache = None
