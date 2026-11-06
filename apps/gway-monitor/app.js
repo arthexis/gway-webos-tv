@@ -25,12 +25,12 @@
     return info.ipv4.join(', ');
   }
   function switchChannel(next) {
-    channel = (next + 3) % 3;
-    ['hardware', 'ocpp', 'github'].forEach(function (name, i) {
+    channel = (next + 4) % 4;
+    ['hardware', 'ocpp', 'github', 'deployments'].forEach(function (name, i) {
       el(name).hidden = channel !== i;
       el('tab-' + name).className = channel === i ? 'selected' : '';
     });
-    value('title', ['Hardware', 'OCPP', 'GitHub PRs'][channel]);
+    value('title', ['Hardware', 'OCPP', 'GitHub PRs', 'Deployments'][channel]);
   }
   function renderGithub(g) {
     var node = el('pr-list'); node.textContent = '';
@@ -45,6 +45,21 @@
       var status = document.createElement('p'); status.className = 'muted';
       status.textContent = (pr.draft ? 'Draft' : 'Open') + ' · CI: ' + pr.ci + ' · Merge: ' + (pr.merge || 'unknown');
       card.appendChild(heading); card.appendChild(title); card.appendChild(status); node.appendChild(card);
+    });
+  }
+  function renderDeployments(d) {
+    var node = el('deployment-list'); node.textContent = '';
+    if (!d || !d.available) { value('deployment-summary', 'Deployment data unavailable'); return; }
+    var items = d.components || [];
+    value('deployment-summary', items.length + ' configured components on ' + (d.node || 'gway-001'));
+    if (!items.length) { node.textContent = 'No configured components reported'; return; }
+    items.forEach(function (item) {
+      var card = document.createElement('article'); card.className = 'pr-card';
+      var heading = document.createElement('h2'); heading.textContent = item.repository || item.name;
+      var detail = document.createElement('p'); detail.textContent = 'Revision: ' + (item.revision || 'unknown');
+      var state = document.createElement('p'); state.className = 'muted';
+      state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '');
+      card.appendChild(heading); card.appendChild(detail); card.appendChild(state); node.appendChild(card);
     });
   }
   function renderHardware(h) {
@@ -99,7 +114,7 @@
       value('freshness', 'Invalid observation time'); return;
     }
     lastObserved = timestamp; lastReceived = Date.now();
-    renderHardware(msg.hardware); renderOcpp(msg.ocpp); renderGithub(msg.github); updateFreshness();
+    renderHardware(msg.hardware); renderOcpp(msg.ocpp); renderGithub(msg.github); renderDeployments(msg.deployments); updateFreshness();
   }
   function updateFreshness() {
     if (!lastReceived) { value('freshness', 'Waiting for data'); return; }
