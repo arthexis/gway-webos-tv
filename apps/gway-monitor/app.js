@@ -11,9 +11,9 @@
   function el(id) { return document.getElementById(id); }
   function value(id, text) { el(id).textContent = text === null || text === undefined || text === '' ? '—' : String(text); }
   function showConnection(text) { value('connection', text); el('reconnect-hint').hidden = ready; }
-  var channels = ['hardware', 'ocpp', 'github', 'deployments', 'fleet'].map(function (id) {
+  var channels = Object.keys(window.GwayMonitorChannels).map(function (id) {
     return window.GwayMonitorChannels[id];
-  });
+  }).sort(function (a, b) { return a.order - b.order; });
   var registry = window.GwayChannelRegistry.create(channels, function (id) { return document.getElementById(id); });
   function switchChannel(next) {
     var previous = channels[channel];
