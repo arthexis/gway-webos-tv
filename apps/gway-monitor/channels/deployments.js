@@ -34,10 +34,13 @@
       var card = document.createElement('article'); card.className = 'pr-card';
       var heading = document.createElement('h2'); heading.textContent = item.repository || item.name;
       var detail = document.createElement('p'); detail.textContent = 'Revision: ' + (item.revision || 'unknown');
+      var when = document.createElement('p'); when.className = 'muted';
+      var parsed = item.deployed_at ? new Date(item.deployed_at) : null;
+      when.textContent = 'Last deployment: ' + (parsed && !isNaN(parsed.getTime()) ? parsed.toLocaleString() : 'Date unavailable');
       var state = document.createElement('p'); state.className = 'muted';
       state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '');
       var text = document.createElement('div'); text.className = 'status-copy';
-      text.appendChild(heading); text.appendChild(detail); text.appendChild(state);
+      text.appendChild(heading); text.appendChild(detail); text.appendChild(when); text.appendChild(state);
       card.appendChild(text); card.appendChild(window.GwayMonitorStatus.badge(window.GwayMonitorStatus.deployment(item))); node.appendChild(card);
     });
     highlight(false);
