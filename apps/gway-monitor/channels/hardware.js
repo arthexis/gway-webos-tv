@@ -20,5 +20,5 @@
     ['eth0', 'wlan0', 'wlan1'].forEach(function (id) { value(id, address(ips[id])); });
   }
   window.GwayMonitorChannels = window.GwayMonitorChannels || {};
-  window.GwayMonitorChannels.hardware = {id:'hardware', title:'Hardware', snapshotKey:'hardware', render:renderHardware, mount:function () {}, unmount:function () {}};
+  window.GwayMonitorChannels.hardware = {id:'hardware', order:0, title:'Hardware', snapshotKey:'hardware', render:renderHardware, mount:function () {}, unmount:function () {}};
 }());
