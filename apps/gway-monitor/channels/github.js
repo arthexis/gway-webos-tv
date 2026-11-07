@@ -26,8 +26,11 @@
   }
   function renderGithub(g) {
     var node = el('pr-list'); node.textContent = '';
-    if (!g) { value('pr-summary', 'Unavailable'); return; }
+    if (!g) { value('pr-summary', 'Unavailable'); window.GwayMonitorChannels.github.footerText = 'PRs unavailable'; value('channel-count', 'PRs unavailable'); return; }
     var prs = g.pull_requests || [];
+    var countText = prs.length + ' open PRs · ' + (g.repositories || []).length + ' repos';
+    window.GwayMonitorChannels.github.footerText = countText;
+    if (!el('github').hidden) value('channel-count', countText);
     value('pr-summary', prs.length + ' open PRs · ' + (g.repositories || []).length + ' repos' + (g.errors && g.errors.length ? ' · Errors: ' + g.errors.join(', ') : ''));
     if (!prs.length) { node.textContent = g.errors && g.errors.length ? 'GitHub data unavailable' : 'No open PRs'; return; }
     prs.forEach(function (pr) {
