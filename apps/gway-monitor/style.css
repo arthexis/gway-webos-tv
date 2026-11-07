@@ -29,3 +29,11 @@ nav .guide{font-size:19px}
 .status-pending{color:#7fbdf4}
 .status-draft,.status-unknown{color:#b1bac6}
 .status-outdated,.status-degraded{color:#f6bf65}
+
+/* Keep the header, channel selector and footer inside the TV safe frame.
+   Only the active channel content may scroll; never the document body. */
+html,body{height:100%;overflow:hidden}
+main{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+main>header,main>nav,main>footer{flex:0 0 auto}
+main>section{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:auto}
+main>section .grid{padding-bottom:8px}
