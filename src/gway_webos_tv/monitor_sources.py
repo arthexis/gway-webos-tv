@@ -112,4 +112,4 @@ def ocpp_snapshot(read_json):
             "last_query_ok": recent is not None,
             "current": tx(current),
             "last": tx(recent),
-        },
+        }
