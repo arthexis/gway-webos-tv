@@ -1,47 +1,43 @@
-# Automatic webOS TV deployment via GWay Remote
+# Automatic webOS deployment via GWay Remote
 
-On a successful **CI** workflow run for a push to `main`, the
-`Deploy webOS TV via GWay Remote` workflow sends a fixed
-`webos-tv-deploy` `repository_dispatch` to `arthexis/gway-remote`.
-The dispatch token is stored as `GWAY_REMOTE_DISPATCH_TOKEN` in the
-**gway-webos-tv** Actions secrets and must have permission to dispatch
-events to **gway-remote**. A manual `workflow_dispatch` can retry.
+The existing `gway-001` self-hosted runner belongs to
+`arthexis/gway-remote`. Its dedicated
+`.github/workflows/webos-tv-deploy.yml` runs every five minutes and
+can be triggered manually. This is a **CI-gated polling workflow**, not a
+repository-dispatch event: no cross-repository secret is required.
 
-GWay Remote verifies that the source is exactly
-`arthexis/gway-webos-tv` and the requested SHA is the **current**
-`main` tip. Only its registered `gway-001` runner runs the workload.
-No arbitrary command, host, or branch is accepted from the payload.
+On each check, GWay Remote uses the **existing local gh authentication**
+on gway-001 to read `arthexis/gway-webos-tv`'s current `main` SHA
+and its exact-SHA **CI** push run. Only `completed:success` may deploy.
+Pending/failed CI is skipped and retried at the next check. The last
+successfully deployed SHA is recorded under
+`~/.local/state/gway-webos-tv/auto-deployed-sha` to avoid repeated
+installs. Failed deployments do not update this receipt and retry.
 
-The runner updates the clean checkout at
-`/home/arthe/Repos/gway-webos-tv` using a fast-forward, verifies the
-SHA and runs the existing `./deploy.sh` (Ansible). Only after successful
-node deployment does `scripts/auto-tv-deploy.py` check the paired
-`lab-tv` developer profile. If the TV control port (3000) or developer
-SSH port (9922) is unreachable, TV installation is **skipped with
-success**; the GWAY 001 deployment still succeeds.
+The fixed workload fast-forwards a clean trusted checkout at
+`/home/arthe/Repos/gway-webos-tv`, executes the existing `./deploy.sh`
+(Ansible), then `scripts/auto-tv-deploy.py`.
 
-When both ports are available, the script validates the TV's existing
-pairing, certificate pin, model and developer profile. It builds and
-installs **all** manifest-discovered webOS applications with `--replace`
-without changing the foreground when a different app is active. If an updated app was already foreground and remains foreground after installation, it is closed and relaunched, with foreground confirmation. A reachable but
-untrusted TV or a failed package/install is a **real failure**, not an
-offline skip. The private WSS build config and pairing keys stay on
-gway-001; nothing is placed in GitHub Actions.
+The TV installer uses the existing paired `lab-tv` developer profile
+and private local WSS build configuration. When port 3000 or 9922 is
+unreachable, TV installation is skipped **without failing the node
+deployment**. When online, pairing/model/certificate verification and
+installation of all manifest-discovered applications are mandatory.
+An online verification, package or installation failure is a real
+failure.
 
-### Deployment results
+The installer records the foreground app before installing. If the
+same updated app is still in the foreground afterwards, it closes and
+reopens it; otherwise it leaves the TV's current foreground alone.
 
-The calling workflow confirms **dispatch only**. Inspect
-`arthexis/gway-remote` → Actions → **Remote workloads** for actual
-GWAY 001 / TV results. A skipped offline TV install does not mean the
-apps are current; the next successful main deployment or manual
-workflow dispatch will retry. No background polling or auto-wake is
-performed.
+## Rollout
 
-### Rollout order
+1. Merge the GWay Remote PR that adds the scheduled runner workflow.
+2. Merge this repository's auto-TV installer PR.
+3. Trigger `webOS TV automatic deployment` manually in GWay Remote
+   for the first end-to-end run and inspect its logs.
+4. Subsequent successful webOS main CI runs are deployed on the next
+   scheduled check (GitHub schedule execution may be delayed).
 
-1. Merge the GWay Remote PR that admits `webos-tv-deploy`.
-2. Configure/verify `GWAY_REMOTE_DISPATCH_TOKEN` in the webOS repo.
-3. Merge this repo's CI workflow PR.
-4. Verify the cross-repo dispatch and remote runner receipt.
-
-The existing `CI` workflow remains the only PR validation gate.
+No token is stored in the webOS repository. The local GitHub CLI
+authentication must remain functional for the runner user.
