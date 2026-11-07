@@ -2,6 +2,7 @@
 """Package a webOS app and optionally install or launch it on a paired TV."""
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -135,6 +136,10 @@ def load_manifest(source):
 def stage_app(source, staged, manifest, config):
     shutil.copytree(source, staged)
     (staged / "manifest.json").unlink()
+    icon_spec = importlib.util.spec_from_file_location("launcher_icons", ROOT / "scripts/launcher_icons.py")
+    icon_module = importlib.util.module_from_spec(icon_spec)
+    icon_spec.loader.exec_module(icon_module)
+    icon_module.generate_icon(source.name, staged / "icon.png")
     bridge = manifest["bridge"]
     if bridge["mode"] == "inject":
         url = endpoint_from_config(config.expanduser())

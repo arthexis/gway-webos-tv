@@ -30,7 +30,9 @@
       var detail = document.createElement('p'); detail.textContent = 'Revision: ' + (item.revision || 'unknown');
       var state = document.createElement('p'); state.className = 'muted';
       state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '');
-      card.appendChild(heading); card.appendChild(detail); card.appendChild(state); node.appendChild(card);
+      var text = document.createElement('div'); text.className = 'status-copy';
+      text.appendChild(heading); text.appendChild(detail); text.appendChild(state);
+      card.appendChild(text); card.appendChild(window.GwayMonitorStatus.badge(window.GwayMonitorStatus.deployment(item))); node.appendChild(card);
     });
     highlight(false);
   }

@@ -37,6 +37,7 @@ function element(id) {
     id, hidden:false, textContent:'', className:'', children:[],
     classList:{toggle:()=>{}},
     appendChild(child){this.children.push(child)},
+    setAttribute(){},
     scrollIntoView(){}
   };
 }
@@ -46,7 +47,7 @@ const document = {
   createElement(tag){return element(tag)}
 };
 const context = {window:{},document,console};
-for(const file of ['core/format.js','channel-registry.js',
+for(const file of ['core/format.js','channel-registry.js','core/status.js',
   'channels/hardware.js','channels/ocpp.js','channels/github.js',
   'channels/deployments.js','channels/fleet.js']) {
   vm.runInNewContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});

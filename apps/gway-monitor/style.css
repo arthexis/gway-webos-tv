@@ -3,3 +3,29 @@
 .pr-card{grid-column:span 3;min-height:90px;padding:12px 20px}.pr-card h2{font-size:18px;margin:0}.pr-card p{margin:6px 0;font-size:18px}
 
 #github .pr-card.selected-card,#deployments .pr-card.selected-card,#fleet .pr-card.selected-card{border-color:#7fe4bd;box-shadow:inset 0 0 0 2px #7fe4bd}
+
+/* TV viewing-distance readability: preserve existing 3vh / 2vw safe margins. */
+.eyebrow,.label{font-size:21px;letter-spacing:1px}
+h2{font-size:28px}
+p{font-size:26px}
+.header-right p{font-size:22px}
+.pill{font-size:21px}
+nav{font-size:22px;gap:10px;flex-wrap:wrap}
+nav span{padding:8px 10px}
+nav .guide{font-size:19px}
+.big{font-size:48px}
+.muted,.note,footer{font-size:23px}
+.network p:not(.label){font-size:25px}
+.tx-row strong{font-size:27px}
+.pr-card{display:flex;align-items:center;justify-content:space-between;gap:24px;min-height:142px;padding:17px 24px}
+.pr-card h2{font-size:25px}
+.pr-card p{font-size:24px;line-height:1.25;margin:7px 0;overflow-wrap:anywhere}
+.status-copy{flex:1;min-width:0}
+.status-badge{flex:0 0 100px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;color:#a8b9c8}
+.status-symbol{display:flex;align-items:center;justify-content:center;width:78px;height:78px;border:4px solid currentColor;border-radius:50%;font-size:62px;font-weight:bold;line-height:1}
+.status-label{font-size:17px;font-weight:bold}
+.status-passed{color:#7fe4bd}
+.status-failed{color:#ff7878}
+.status-pending{color:#7fbdf4}
+.status-draft,.status-unknown{color:#b1bac6}
+.status-outdated,.status-degraded{color:#f6bf65}
