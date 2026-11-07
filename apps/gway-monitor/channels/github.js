@@ -30,7 +30,9 @@
       var title = document.createElement('p'); title.textContent = pr.title;
       var status = document.createElement('p'); status.className = 'muted';
       status.textContent = (pr.draft ? 'Draft' : 'Open') + ' · CI: ' + pr.ci + ' · Merge: ' + (pr.merge || 'unknown');
-      card.appendChild(heading); card.appendChild(title); card.appendChild(status); node.appendChild(card);
+      var text = document.createElement('div'); text.className = 'status-copy';
+      text.appendChild(heading); text.appendChild(title); text.appendChild(status);
+      card.appendChild(text); card.appendChild(window.GwayMonitorStatus.badge(window.GwayMonitorStatus.github(pr))); node.appendChild(card);
     });
     highlight(false);
   }
