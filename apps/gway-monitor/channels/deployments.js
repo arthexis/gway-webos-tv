@@ -10,7 +10,13 @@
     if (!list.length) return;
     selected = Math.max(0, Math.min(selected, list.length - 1));
     Array.prototype.forEach.call(list, function (card, i) { card.classList.toggle('selected-card', i === selected); });
-    if (scroll) list[selected].scrollIntoView({block: 'nearest', behavior: 'auto'});
+    if (scroll) {
+      var viewport = el('deployments');
+      var cardRect = list[selected].getBoundingClientRect();
+      var viewRect = viewport.getBoundingClientRect();
+      if (cardRect.bottom > viewRect.bottom) viewport.scrollTop += cardRect.bottom - viewRect.bottom;
+      else if (cardRect.top < viewRect.top) viewport.scrollTop -= viewRect.top - cardRect.top;
+    }
   }
   function onKey(code) {
     if (code !== 38 && code !== 40) return false;
