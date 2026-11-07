@@ -66,8 +66,11 @@ def run(home=None, cli=None, probe=port_available):
     if foreground_before in installed_ids:
         foreground_after = cli.tv_status(host).get("foreground_app")
         if foreground_after == foreground_before:
+            cli.command("ares-launch", "--device", DEVICE, "--close", foreground_before)
             cli.command("ares-launch", "--device", DEVICE, foreground_before)
-            print("Refreshed already-foreground webOS app:", foreground_before)
+            if cli.tv_status(host).get("foreground_app") != foreground_before:
+                raise RuntimeError("Updated foreground app did not reopen")
+            print("Restarted already-foreground webOS app:", foreground_before)
         else:
             print("Foreground changed during install; not launching any app")
     else:
