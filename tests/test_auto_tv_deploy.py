@@ -36,7 +36,7 @@ def test_online_tv_installs_both_apps_without_launch(tmp_path):
     def install():
         calls.append(("install", tuple(mod.sys.argv)))
         return 0
-    cli = SimpleNamespace(verify_device=verify, main=install)
+    cli = SimpleNamespace(verify_device=verify, main=install, tv_status=lambda host: {"foreground_app": "com.webos.app.browser"}, discover_apps=lambda: ["gway-monitor", "remote-test"], load_manifest=lambda p: ({}, {"id": "com.example." + p.name}))
     assert mod.run(home=home, cli=cli, probe=lambda h, p: True) == 0
     assert calls[0] == ("verify", "lab-tv", "192.0.2.50")
     assert calls[1][1][1:3] == ("all", "--replace")
@@ -45,7 +45,7 @@ def test_online_tv_installs_both_apps_without_launch(tmp_path):
 
 def test_online_failure_is_not_hidden(tmp_path):
     home = home_with_profile(tmp_path)
-    cli = SimpleNamespace(verify_device=lambda *args: None, main=lambda: 1)
+    cli = SimpleNamespace(verify_device=lambda *args: None, main=lambda: 1, tv_status=lambda host: {"foreground_app": None})
     with pytest.raises(RuntimeError, match="installation failed"):
         mod.run(home=home, cli=cli, probe=lambda h, p: True)
 
@@ -62,3 +62,38 @@ def test_online_identity_mismatch_fails(tmp_path):
     cli = SimpleNamespace(verify_device=reject, main=lambda: 0)
     with pytest.raises(ValueError, match="certificate"):
         mod.run(home=home, cli=cli, probe=lambda h, p: True)
+
+
+def test_foreground_updated_app_is_restarted(tmp_path):
+    home = home_with_profile(tmp_path)
+    calls = []
+    app_id = "com.example.gway-monitor"
+    cli = SimpleNamespace(
+        verify_device=lambda *args: None,
+        tv_status=lambda host: {"foreground_app": app_id},
+        main=lambda: 0,
+        discover_apps=lambda: ["gway-monitor", "remote-test"],
+        load_manifest=lambda p: ({}, {"id": "com.example." + p.name}),
+        command=lambda *args: calls.append(args),
+    )
+    assert mod.run(home=home, cli=cli, probe=lambda h, p: True) == 0
+    assert calls == [
+        ("ares-launch", "--device", "lab-tv", "--close", app_id),
+        ("ares-launch", "--device", "lab-tv", app_id),
+    ]
+
+
+def test_foreground_changed_during_install_is_not_overridden(tmp_path):
+    home = home_with_profile(tmp_path)
+    calls = []
+    states = iter(["com.example.gway-monitor", "com.webos.app.browser"])
+    cli = SimpleNamespace(
+        verify_device=lambda *args: None,
+        tv_status=lambda host: {"foreground_app": next(states)},
+        main=lambda: 0,
+        discover_apps=lambda: ["gway-monitor"],
+        load_manifest=lambda p: ({}, {"id": "com.example.gway-monitor"}),
+        command=lambda *args: calls.append(args),
+    )
+    assert mod.run(home=home, cli=cli, probe=lambda h, p: True) == 0
+    assert calls == []
