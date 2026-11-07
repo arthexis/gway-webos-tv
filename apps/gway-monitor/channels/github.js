@@ -35,5 +35,5 @@
     highlight(false);
   }
   window.GwayMonitorChannels = window.GwayMonitorChannels || {};
-  window.GwayMonitorChannels.github = {id:'github', title:'GitHub PRs', snapshotKey:'github', render:renderGithub, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey};
+  window.GwayMonitorChannels.github = {id:'github', order:2, title:'GitHub PRs', snapshotKey:'github', render:renderGithub, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey};
 }());
