@@ -35,5 +35,5 @@
     highlight(false);
   }
   window.GwayMonitorChannels = window.GwayMonitorChannels || {};
-  window.GwayMonitorChannels.deployments = {id:'deployments', title:'Deployments', snapshotKey:'deployments', render:renderDeployments, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey};
+  window.GwayMonitorChannels.deployments = {id:'deployments', order:3, title:'Deployments', snapshotKey:'deployments', render:renderDeployments, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey};
 }());
