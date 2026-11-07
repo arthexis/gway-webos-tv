@@ -20,7 +20,7 @@
     if (['degraded','warning'].indexOf(health) !== -1) return result('degraded', 'Degraded');
     // Only show 'outdated' when the collector supplies explicit comparable revisions.
     if (item.outdated === true || (item.target_revision && item.revision && item.target_revision !== item.revision)) return result('outdated', 'Outdated');
-    if (['installed','active','success','succeeded','ok'].indexOf(install) !== -1 &&
+    if (['installed','active','activated','success','succeeded','ok'].indexOf(install) !== -1 &&
         ['healthy','active','running','ok','success'].indexOf(health) !== -1) return result('passed', 'Healthy');
     return result('unknown', 'Unknown');
   }

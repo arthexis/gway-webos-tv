@@ -37,3 +37,7 @@ main{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidd
 main>header,main>nav,main>footer{flex:0 0 auto}
 main>section{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:auto}
 main>section .grid{padding-bottom:8px}
+
+/* Hide visual scrollbars without disabling remote-arrow navigation. */
+#github,#deployments{scrollbar-width:none;-ms-overflow-style:none}
+#github::-webkit-scrollbar,#deployments::-webkit-scrollbar{display:none;width:0;height:0}
