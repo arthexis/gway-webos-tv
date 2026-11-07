@@ -33,5 +33,5 @@
     else renderTransaction(o.last, 'Last transaction (recorded)');
   }
   window.GwayMonitorChannels = window.GwayMonitorChannels || {};
-  window.GwayMonitorChannels.ocpp = {id:'ocpp', title:'OCPP', snapshotKey:'ocpp', render:renderOcpp, mount:function () {}, unmount:function () {}};
+  window.GwayMonitorChannels.ocpp = {id:'ocpp', order:1, title:'OCPP', snapshotKey:'ocpp', render:renderOcpp, mount:function () {}, unmount:function () {}};
 }());
