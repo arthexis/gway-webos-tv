@@ -49,22 +49,23 @@ def hardware_snapshot(read_json):
         ips.setdefault(name, {"present": False, "up": False, "operstate": None, "ipv4": []})
 
     return {
-            "available": bool(hardware),
-            "ambient_c": ambient.get("celsius"),
-            "soc_c": host.get("cpu_temperature_c"),
-            "model": host.get("model"),
-            "uptime_seconds": host.get("uptime_seconds"),
-            "cpu_frequency_mhz": host.get("cpu_frequency_mhz"),
-            "memory": host.get("memory"),
-            "disk": host.get("root_filesystem"),
-            "interfaces": ips,
-        }
+        "available": bool(hardware),
+        "ambient_c": ambient.get("celsius"),
+        "soc_c": host.get("cpu_temperature_c"),
+        "model": host.get("model"),
+        "uptime_seconds": host.get("uptime_seconds"),
+        "cpu_frequency_mhz": host.get("cpu_frequency_mhz"),
+        "memory": host.get("memory"),
+        "disk": host.get("root_filesystem"),
+        "interfaces": ips,
+    }
 
 
 def ocpp_snapshot(read_json):
     status = read_json(["/usr/local/bin/ocpp-csms", "status", "--json"])
     active = read_json(["/usr/local/bin/ocpp-csms", "txn", "--active", "--json"])
     last = read_json(["/usr/local/bin/ocpp-csms", "txn", "--last", "--json"])
+
     def data(doc, schema):
         return (
             doc.get("data", {})
@@ -101,15 +102,15 @@ def ocpp_snapshot(read_json):
     if not isinstance(chargers, list):
         chargers = []
     return {
-            "available": csms is not None,
-            "server": csms.get("server") if csms else None,
-            "storage": csms.get("storage") if csms else None,
-            "charger_count": len(chargers),
-            "connected_count": sum(
-                1 for c in chargers if isinstance(c, dict) and c.get("connected") is True
-            ),
-            "active_query_ok": current is not None,
-            "last_query_ok": recent is not None,
-            "current": tx(current),
-            "last": tx(recent),
-        }
+        "available": csms is not None,
+        "server": csms.get("server") if csms else None,
+        "storage": csms.get("storage") if csms else None,
+        "charger_count": len(chargers),
+        "connected_count": sum(
+            1 for c in chargers if isinstance(c, dict) and c.get("connected") is True
+        ),
+        "active_query_ok": current is not None,
+        "last_query_ok": recent is not None,
+        "current": tx(current),
+        "last": tx(recent),
+    }
