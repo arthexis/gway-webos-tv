@@ -48,6 +48,7 @@ def run(home=None, cli=None, probe=port_available):
         spec.loader.exec_module(cli)
     # When the device is reachable, pairing/model/certificate checks are mandatory.
     cli.verify_device(DEVICE, host)
+    foreground_before = cli.tv_status(host).get("foreground_app")
     args = ["tv-app.py", "all", "--replace", "--install", "--device", DEVICE, "--host", host]
     previous = sys.argv
     try:
@@ -57,7 +58,21 @@ def run(home=None, cli=None, probe=port_available):
         sys.argv = previous
     if rc != 0:
         raise RuntimeError("webOS app installation failed")
-    print("Both webOS applications installed successfully; foreground unchanged")
+    # Refresh only if the updated app was already foreground and still is.
+    installed_ids = []
+    for app in cli.discover_apps():
+        _, meta = cli.load_manifest(ROOT / "apps" / app)
+        installed_ids.append(meta["id"])
+    if foreground_before in installed_ids:
+        foreground_after = cli.tv_status(host).get("foreground_app")
+        if foreground_after == foreground_before:
+            cli.command("ares-launch", "--device", DEVICE, foreground_before)
+            print("Refreshed already-foreground webOS app:", foreground_before)
+        else:
+            print("Foreground changed during install; not launching any app")
+    else:
+        print("Different app in foreground; leaving TV unchanged")
+    print("webOS applications installed successfully")
     return 0
 
 
