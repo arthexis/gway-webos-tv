@@ -33,7 +33,7 @@ ctx.window.GwaySecretDialog={create(){return {
 }}};
 for(const name of ['core/format.js','channel-registry.js',
  'channels/hardware.js','channels/ocpp.js','channels/github.js',
- 'channels/deployments.js','channels/fleet.js','app.js']){
+ 'channels/deployments.js','channels/fleet.js','core/status.js','app.js']){
  vm.runInNewContext(fs.readFileSync(path.join(root,name),'utf8'),ctx,{filename:name});
 }
 assert.equal(node('hardware').hidden,false);
