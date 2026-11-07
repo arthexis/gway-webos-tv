@@ -4,9 +4,12 @@
   function create(definitions, lookup) {
     if (!Array.isArray(definitions) || !definitions.length) throw new Error('No monitor channels');
     var seen = Object.create(null);
+    var orders = Object.create(null);
     var items = definitions.map(function (item) {
       if (!item || typeof item.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(item.id) ||
-          seen[item.id] || typeof item.title !== 'string' || !item.title ||
+          seen[item.id] ||
+          (item.order !== undefined && (!Number.isInteger(item.order) || item.order < 0 || orders[item.order])) ||
+          typeof item.title !== 'string' || !item.title ||
           typeof item.render !== 'function' ||
           (item.snapshotKey !== undefined && (typeof item.snapshotKey !== 'string' || !/^[a-z][a-z0-9-]*$/.test(item.snapshotKey))) ||
           (item.mount !== undefined && typeof item.mount !== 'function') ||
@@ -16,6 +19,7 @@
         throw new Error('Invalid or duplicate monitor channel');
       }
       seen[item.id] = true;
+      if (item.order !== undefined) orders[item.order] = true;
       return item;
     });
     return {
