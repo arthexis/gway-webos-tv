@@ -23,7 +23,7 @@ success**; the GWAY 001 deployment still succeeds.
 When both ports are available, the script validates the TV's existing
 pairing, certificate pin, model and developer profile. It builds and
 installs **all** manifest-discovered webOS applications with `--replace`
-without forcing either app into the foreground. A reachable but
+without changing the foreground when a different app is active. If an updated app was already foreground and remains foreground after installation, it is closed and relaunched, with foreground confirmation. A reachable but
 untrusted TV or a failed package/install is a **real failure**, not an
 offline skip. The private WSS build config and pairing keys stay on
 gway-001; nothing is placed in GitHub Actions.
