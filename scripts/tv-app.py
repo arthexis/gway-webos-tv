@@ -65,6 +65,89 @@ def endpoint_from_config(path):
     return url
 
 
+
+MANIFEST_SCHEMA = "gway-webos-tv/app-build/v1"
+INJECTION_POINT = "var url = localStorage.getItem('gway.bridge.url') || '';"
+APP_NAME = re.compile(r"[a-z0-9][a-z0-9-]*\\Z")
+APP_ID = re.compile(r"[a-z0-9]+(?:[.-][a-z0-9]+)+\\Z")
+VERSION = re.compile(r"\\d+\\.\\d+\\.\\d+\\Z")
+
+
+def discover_apps(apps_root=None):
+    """Discover only directories with a valid build manifest."""
+    root = apps_root or ROOT / "apps"
+    return sorted(
+        p.name for p in root.iterdir()
+        if p.is_dir() and not p.is_symlink() and (p / "manifest.json").is_file()
+    )
+
+
+def safe_relative_path(value):
+    if not isinstance(value, str) or not value or "\\\\" in value:
+        raise ValueError("Invalid manifest relative path")
+    candidate = Path(value)
+    if candidate.is_absolute() or any(p in (".", "..") for p in value.split("/")):
+        raise ValueError("Unsafe manifest relative path")
+    if not all(re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in value.split("/")):
+        raise ValueError("Invalid manifest path component")
+    return candidate
+
+
+def load_manifest(source):
+    """Validate local build metadata independently from webOS appinfo.json."""
+    if not source.is_dir() or source.is_symlink():
+        raise ValueError("App directory missing")
+    if any(p.is_symlink() for p in source.rglob("*")):
+        raise ValueError("App directory contains symlinks")
+    path = source / "manifest.json"
+    manifest = json.loads(path.read_text())
+    if not isinstance(manifest, dict) or set(manifest) != {"schema", "entry", "bridge"}:
+        raise ValueError("Invalid build manifest fields")
+    if manifest["schema"] != MANIFEST_SCHEMA:
+        raise ValueError("Unsupported build manifest schema")
+    entry = safe_relative_path(manifest["entry"])
+    if not (source / entry).is_file():
+        raise ValueError("Manifest entry file missing")
+    bridge = manifest["bridge"]
+    if not isinstance(bridge, dict) or bridge.get("mode") not in ("none", "inject"):
+        raise ValueError("Invalid bridge configuration")
+    if bridge["mode"] == "none":
+        if set(bridge) != {"mode"}:
+            raise ValueError("Unexpected bridge fields")
+    else:
+        if set(bridge) != {"mode", "file", "config_key"} or bridge["config_key"] != "bridge_url":
+            raise ValueError("Invalid bridge injection contract")
+        target = source / safe_relative_path(bridge["file"])
+        if not target.is_file() or target.suffix != ".js":
+            raise ValueError("Bridge injection target missing")
+        if target.read_text().count(INJECTION_POINT) != 1:
+            raise ValueError("App endpoint injection point is missing or ambiguous")
+    meta = json.loads((source / "appinfo.json").read_text())
+    if not isinstance(meta, dict) or not isinstance(meta.get("id"), str) or not APP_ID.fullmatch(meta["id"]):
+        raise ValueError("Invalid app ID")
+    if not isinstance(meta.get("version"), str) or not VERSION.fullmatch(meta["version"]):
+        raise ValueError("Invalid app version")
+    if meta.get("main") != manifest["entry"]:
+        raise ValueError("Manifest entry does not match webOS main")
+    return manifest, meta
+
+
+def stage_app(source, staged, manifest, config):
+    shutil.copytree(source, staged)
+    (staged / "manifest.json").unlink()
+    bridge = manifest["bridge"]
+    if bridge["mode"] == "inject":
+        url = endpoint_from_config(config.expanduser())
+        target = staged / safe_relative_path(bridge["file"])
+        contents = target.read_text()
+        if contents.count(INJECTION_POINT) != 1:
+            raise ValueError("App endpoint injection point is missing or ambiguous")
+        target.write_text(contents.replace(
+            INJECTION_POINT,
+            "var url = localStorage.getItem('gway.bridge.url') || " + json.dumps(url) + ";"
+        ))
+
+
 def tv_status(host):
     result = subprocess.run(
         ["tv", "--host", host, "--timeout", "10", "--json", "status"],
@@ -130,7 +213,7 @@ def main():
         if "all" in selected:
             if len(selected) != 1:
                 raise ValueError("all cannot be combined with app names")
-            selected = sorted(p.name for p in (ROOT / "apps").iterdir() if p.is_dir())
+            selected = discover_apps()
         if len(set(selected)) != len(selected):
             raise ValueError("Duplicate app selection")
         if args.launch and len(selected) != 1:
@@ -138,36 +221,15 @@ def main():
         if args.install:
             verify_device(args.device, args.host)
         for app in selected:
-            if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", app):
+            if not APP_NAME.fullmatch(app):
                 raise ValueError("Use an app directory name from apps/")
             source = ROOT / "apps" / app
-            if not source.is_dir() or any(x.is_symlink() for x in source.rglob("*")):
-                raise ValueError("App directory missing or contains symlinks")
-            meta = json.loads((source / "appinfo.json").read_text())
+            manifest, meta = load_manifest(source)
             app_id, version = meta["id"], meta["version"]
-            if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)+", app_id) or not re.fullmatch(
-                r"\d+\.\d+\.\d+", version
-            ):
-                raise ValueError("Invalid app ID or version")
             with tempfile.TemporaryDirectory(prefix="gway-webos-build-") as temporary:
                 root = Path(temporary)
                 staged = root / "app"
-                shutil.copytree(source, staged)
-                if app in ("remote-test", "gway-monitor"):
-                    url = endpoint_from_config(args.config.expanduser())
-                    target = staged / "app.js"
-                    contents = target.read_text()
-                    old = "var url = localStorage.getItem('gway.bridge.url') || '';"
-                    if contents.count(old) != 1:
-                        raise ValueError("App endpoint injection point is missing or ambiguous")
-                    target.write_text(
-                        contents.replace(
-                            old,
-                            "var url = localStorage.getItem('gway.bridge.url') || "
-                            + json.dumps(url)
-                            + ";",
-                        )
-                    )
+                stage_app(source, staged, manifest, args.config)
                 command("ares-package", "-o", root, staged)
                 package = root / f"{app_id}_{version}_all.ipk"
                 if not package.is_file():
