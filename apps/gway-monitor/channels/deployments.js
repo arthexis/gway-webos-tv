@@ -26,8 +26,11 @@
   }
   function renderDeployments(d) {
     var node = el('deployment-list'); node.textContent = '';
-    if (!d || !d.available) { value('deployment-summary', 'Deployment data unavailable'); return; }
+    if (!d || !d.available) { value('deployment-summary', 'Deployment data unavailable'); window.GwayMonitorChannels.deployments.footerText = 'Deployments unavailable'; if (!el('deployments').hidden) value('channel-count', 'Deployments unavailable'); return; }
     var items = d.components || [];
+    var countText = items.length + ' deployments · ' + (d.node || 'gway-001');
+    window.GwayMonitorChannels.deployments.footerText = countText;
+    if (!el('deployments').hidden) value('channel-count', countText);
     value('deployment-summary', items.length + ' configured components on ' + (d.node || 'gway-001'));
     if (!items.length) { node.textContent = 'No configured components reported'; return; }
     items.forEach(function (item) {
