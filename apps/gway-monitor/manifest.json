@@ -1,0 +1,9 @@
+{
+  "schema": "gway-webos-tv/app-build/v1",
+  "entry": "index.html",
+  "bridge": {
+    "mode": "inject",
+    "file": "app.js",
+    "config_key": "bridge_url"
+  }
+}
