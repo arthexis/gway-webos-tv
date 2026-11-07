@@ -4,6 +4,14 @@
   var el = fmt.el, value = fmt.value, number = fmt.number, temperature = fmt.temperature;
   var duration = fmt.duration, bytes = fmt.bytes, address = fmt.address;
   var selected = 0;
+  var items = [], active = {}, errors = {};
+  var retry = function () { return false; };
+  function setRetry(fn) { retry = fn; }
+  function retryState(name, phase, error) {
+    if (phase === 'running') { active[name] = true; delete errors[name]; }
+    else { delete active[name]; if (error) errors[name] = error; else delete errors[name]; }
+    if (window.GwayMonitorChannels.deployments.lastSnapshot) renderDeployments(window.GwayMonitorChannels.deployments.lastSnapshot);
+  }
   function cards() { return el('deployment-list').children; }
   function highlight(scroll) {
     var list = cards();
@@ -19,15 +27,25 @@
     }
   }
   function onKey(code) {
+    if (code === 13) {
+      var item = items[selected];
+      if (!item) return true;
+      if (!active[item.name] && window.GwayMonitorStatus.deployment(item).level === 'failed' && retry(item.name)) retryState(item.name, 'running');
+      return true;
+    }
     if (code !== 38 && code !== 40) return false;
     var list = cards();
     if (list.length) { selected = Math.max(0, Math.min(list.length - 1, selected + (code === 38 ? -1 : 1))); highlight(true); }
     return true;
   }
   function renderDeployments(d) {
+    window.GwayMonitorChannels.deployments.lastSnapshot = d;
     var node = el('deployment-list'); node.textContent = '';
-    if (!d || !d.available) { value('deployment-summary', 'Deployment data unavailable'); return; }
-    var items = d.components || [];
+    if (!d || !d.available) { value('deployment-summary', 'Deployment data unavailable'); window.GwayMonitorChannels.deployments.footerText = 'Deployments unavailable'; if (!el('deployments').hidden) value('channel-count', 'Deployments unavailable'); return; }
+    items = d.components || [];
+    var countText = items.length + ' deployments · ' + (d.node || 'gway-001');
+    window.GwayMonitorChannels.deployments.footerText = countText;
+    if (!el('deployments').hidden) value('channel-count', countText);
     value('deployment-summary', items.length + ' configured components on ' + (d.node || 'gway-001'));
     if (!items.length) { node.textContent = 'No configured components reported'; return; }
     items.forEach(function (item) {
@@ -38,13 +56,13 @@
       var dateText = parsed && !isNaN(parsed.getTime()) ? parsed.toLocaleString() : 'Date unavailable';
       detail.textContent = 'Revision: ' + (item.revision || 'unknown') + ' · Deployed: ' + dateText;
       var state = document.createElement('p'); state.className = 'muted';
-      state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '');
+      state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '') + (errors[item.name] ? ' · Retry: ' + errors[item.name] : '');
       var text = document.createElement('div'); text.className = 'status-copy';
       text.appendChild(heading); text.appendChild(detail); text.appendChild(state);
-      card.appendChild(text); card.appendChild(window.GwayMonitorStatus.badge(window.GwayMonitorStatus.deployment(item))); node.appendChild(card);
+      card.appendChild(text); card.appendChild(window.GwayMonitorStatus.badge(active[item.name] ? {level:'pending', label:'Deploying'} : window.GwayMonitorStatus.deployment(item))); node.appendChild(card);
     });
     highlight(false);
   }
   window.GwayMonitorChannels = window.GwayMonitorChannels || {};
-  window.GwayMonitorChannels.deployments = {id:'deployments', order:3, title:'Deployments', snapshotKey:'deployments', render:renderDeployments, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey};
+  window.GwayMonitorChannels.deployments = {id:'deployments', order:3, title:'Deployments', snapshotKey:'deployments', render:renderDeployments, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey, setRetry:setRetry, retryState:retryState};
 }());

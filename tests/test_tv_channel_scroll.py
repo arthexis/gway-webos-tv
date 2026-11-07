@@ -41,7 +41,7 @@ assert.equal(c.onKey(40),true);
 assert.equal(el(channel).scrollTop,120);
 assert.equal(c.onKey(38),true);
 assert.equal(el(channel).scrollTop,240);
-assert.equal(c.onKey(13),false);
+assert.equal(c.onKey(13),channel==='deployments');
 """
     result = subprocess.run(["node", "-e", script, str(APP / "channels" / (channel + ".js")), channel, list_id],
                             capture_output=True, text=True, timeout=10)
