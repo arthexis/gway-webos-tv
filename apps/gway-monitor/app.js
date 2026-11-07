@@ -43,19 +43,7 @@
     {id: 'deployments', title: 'Deployments', render: renderDeployments, cards: true},
     {id: 'fleet', title: 'Fleet', render: renderFleet, cards: true}
   ];
-  function validateChannels(items) {
-    var seen = {};
-    items.forEach(function (item) {
-      if (!/^[a-z][a-z0-9-]*$/.test(item.id) || seen[item.id] ||
-          typeof item.render !== 'function' || !el(item.id) || !el('tab-' + item.id)) {
-        throw new Error('Invalid or duplicate monitor channel');
-      }
-      seen[item.id] = true;
-    });
-    if (!items.length) throw new Error('No monitor channels');
-    return items;
-  }
-  validateChannels(channels);
+  var registry = window.GwayChannelRegistry.create(channels, el);
   function moveCard(delta) {
     var current = channels[channel];
     if (!current.cards) return;
@@ -66,7 +54,7 @@
     highlightCard(name, true);
   }
   function switchChannel(next) {
-    channel = (next % channels.length + channels.length) % channels.length;
+    channel = registry.index(next);
     channels.forEach(function (item, i) {
       el(item.id).hidden = channel !== i;
       el('tab-' + item.id).className = channel === i ? 'selected' : '';
@@ -176,7 +164,7 @@
       value('freshness', 'Invalid observation time'); return;
     }
     lastObserved = timestamp; lastReceived = Date.now();
-    channels.forEach(function (item) { item.render(msg[item.id]); }); updateFreshness();
+    registry.render(msg); updateFreshness();
   }
   function updateFreshness() {
     if (!lastReceived) { value('freshness', 'Waiting for data'); return; }
