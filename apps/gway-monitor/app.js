@@ -24,6 +24,7 @@
       el('tab-' + item.id).className = channel === i ? 'selected' : '';
     });
     value('title', channels[channel].title);
+    value('channel-count', channels[channel].footerText || '');
     window.scrollTo(0, 0);
     if (typeof channels[channel].mount === 'function') channels[channel].mount();
   }
