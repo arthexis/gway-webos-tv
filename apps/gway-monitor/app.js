@@ -4,7 +4,6 @@
   var credential = localStorage.getItem('gway.monitor.credential') || '';
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0;
-  var selectedCard = {github: 0, deployments: 0, fleet: 0};
   var dialog = window.GwaySecretDialog.create({
     onSubmit: function (secret) { connect(secret); },
     onCancel: function () { showConnection('Disconnected'); }
