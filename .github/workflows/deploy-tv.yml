@@ -1,6 +1,8 @@
 name: Deploy webOS TV via GWay Remote
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 permissions:
@@ -9,37 +11,29 @@ concurrency:
   group: webos-tv-dispatch
   cancel-in-progress: false
 jobs:
-  verify:
-    name: Verify main before dispatch
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: python -m pip install -e '.[dev]'
-      - name: Test
-        run: python -m pytest
-      - name: Validate deployment scripts
-        run: python -m py_compile scripts/auto-tv-deploy.py
   dispatch:
-    name: Request gway-001 deployment
-    needs: verify
+    name: Request gway-001 deployment after successful CI
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch fixed workload to GWay Remote
         env:
           GH_TOKEN: ${{ secrets.GWAY_REMOTE_DISPATCH_TOKEN }}
-          SHA: ${{ github.sha }}
+          SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           [[ -n "$GH_TOKEN" ]] || { echo "::error::GWAY_REMOTE_DISPATCH_TOKEN missing"; exit 1; }
+          [[ "$GH_REPO" == arthexis/gway-webos-tv ]]
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          MAIN_SHA="$(gh api repos/arthexis/gway-webos-tv/branches/main --jq '.commit.sha')"
+          if [[ "$MAIN_SHA" != "$SHA" ]]; then
+            echo "::notice::Superseded main SHA; skipping outdated deployment request"
+            exit 0
+          fi
           gh api -X POST repos/arthexis/gway-remote/dispatches \
             -f event_type=webos-tv-deploy \
             -f client_payload[repository]=arthexis/gway-webos-tv \
             -f client_payload[sha]="$SHA"
-          echo "::notice::Request accepted; deployment result is in arthexis/gway-remote Actions (Remote workloads)"
-          echo "Deployment was requested, not yet verified." >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::Request accepted; final result is in arthexis/gway-remote Actions (Remote workloads)"
+          echo "GWay Remote accepted the request; actual deployment result must be checked in Remote workloads." >> "$GITHUB_STEP_SUMMARY"
