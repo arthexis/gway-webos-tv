@@ -59,3 +59,26 @@ def test_deployment_timestamp_is_not_observation_timestamp():
         result = deployment_monitor.snapshot()
     assert result["components"][0]["deployed_at"] == "2026-10-31T20:00:00Z"
     assert result["components"][1]["deployed_at"] is None
+
+
+def test_selected_channels_hide_scrollbar_without_disabling_scroll():
+    css = (APP / "style.css").read_text()
+    assert "#github,#deployments{scrollbar-width:none" in css
+    assert "#github::-webkit-scrollbar,#deployments::-webkit-scrollbar{display:none" in css
+    assert "main>section{flex:1 1 auto;min-height:0;overflow-y:auto" in css
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node unavailable")
+def test_activated_and_healthy_deployment_is_not_unknown():
+    script = r"""
+const assert=require('assert'),fs=require('fs'),vm=require('vm');
+const ctx={window:{}};
+vm.runInNewContext(fs.readFileSync(process.argv[1],'utf8'),ctx);
+const status=ctx.window.GwayMonitorStatus.deployment;
+assert.equal(status({installation:'activated',health:'healthy'}).label,'Healthy');
+assert.equal(status({installation:'unknown',health:'unhealthy'}).label,'Failed');
+assert.equal(status({installation:'unknown',health:'healthy'}).label,'Unknown');
+"""
+    result = subprocess.run(["node", "-e", script, str(APP / "core/status.js")],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
