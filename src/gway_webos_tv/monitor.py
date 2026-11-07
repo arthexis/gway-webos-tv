@@ -14,10 +14,27 @@ def read_json(argv):
         return None
 
 
-def snapshot():
+PROVIDERS = ("github", "deployments", "fleet")
+
+
+def collect_providers():
+    """Collect optional namespaces independently without exposing provider exceptions."""
     from .github_prs import snapshot as github_snapshot
     from .deployment_monitor import snapshot as deployment_snapshot
     from .fleet_monitor import snapshot as fleet_snapshot
+
+    collectors = dict(zip(PROVIDERS, (github_snapshot, deployment_snapshot, fleet_snapshot)))
+    result = {}
+    for name, collect in collectors.items():
+        try:
+            result[name] = collect()
+        except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError):
+            result[name] = {"available": False, "error": "Provider unavailable"}
+    return result
+
+
+def snapshot():
+    providers = collect_providers()
     hardware = read_json(["/usr/local/bin/gway-remote", "hardware", "--json"])
     network = read_json(["/usr/local/bin/gway-remote", "network", "--json"])
     interfaces = None
@@ -105,9 +122,7 @@ def snapshot():
     return {
         "type": "monitor.snapshot",
         "observed_at": datetime.now(timezone.utc).isoformat(),
-        "github": github_snapshot(),
-        "deployments": deployment_snapshot(),
-        "fleet": fleet_snapshot(),
+        **providers,
         "hardware": {
             "available": bool(hardware),
             "ambient_c": ambient.get("celsius"),
