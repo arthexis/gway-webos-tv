@@ -36,5 +36,5 @@
     highlight(false);
   }
   window.GwayMonitorChannels = window.GwayMonitorChannels || {};
-  window.GwayMonitorChannels.fleet = {id:'fleet', title:'Fleet', snapshotKey:'fleet', render:renderFleet, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey};
+  window.GwayMonitorChannels.fleet = {id:'fleet', order:4, title:'Fleet', snapshotKey:'fleet', render:renderFleet, mount:function () { highlight(false);}, unmount:function () {}, onKey:onKey};
 }());
