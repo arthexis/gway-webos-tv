@@ -68,9 +68,9 @@ def endpoint_from_config(path):
 
 MANIFEST_SCHEMA = "gway-webos-tv/app-build/v1"
 INJECTION_POINT = "var url = localStorage.getItem('gway.bridge.url') || '';"
-APP_NAME = re.compile(r"[a-z0-9][a-z0-9-]*\\Z")
-APP_ID = re.compile(r"[a-z0-9]+(?:[.-][a-z0-9]+)+\\Z")
-VERSION = re.compile(r"\\d+\\.\\d+\\.\\d+\\Z")
+APP_NAME = re.compile(r"[a-z0-9][a-z0-9-]*\Z")
+APP_ID = re.compile(r"[a-z0-9]+(?:[.-][a-z0-9]+)+\Z")
+VERSION = re.compile(r"\d+\.\d+\.\d+\Z")
 
 
 def discover_apps(apps_root=None):
@@ -83,7 +83,7 @@ def discover_apps(apps_root=None):
 
 
 def safe_relative_path(value):
-    if not isinstance(value, str) or not value or "\\\\" in value:
+    if not isinstance(value, str) or not value or "\\" in value:
         raise ValueError("Invalid manifest relative path")
     candidate = Path(value)
     if candidate.is_absolute() or any(p in (".", "..") for p in value.split("/")):
