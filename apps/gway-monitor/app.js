@@ -4,6 +4,17 @@
   var credential = localStorage.getItem('gway.monitor.credential') || '';
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0;
+  var retryJobs = {}, retryTimer = null;
+  function send(message) { if (!ready || !socket || socket.readyState !== WebSocket.OPEN) return false; socket.send(JSON.stringify(message)); return true; }
+  window.GwayMonitorChannels.deployments.setRetry(function (name) {
+    if (retryJobs[name] || !send({type:'deployment.retry', name:name})) return false;
+    retryJobs[name] = true;
+    return true;
+  });
+  function pollRetries() {
+    Object.keys(retryJobs).forEach(function (name) { send({type:'deployment.retry.status', name:name}); });
+  }
+  retryTimer = setInterval(pollRetries, 3000);
   var dialog = window.GwaySecretDialog.create({
     onSubmit: function (secret) { connect(secret); },
     onCancel: function () { showConnection('Disconnected'); }
@@ -71,6 +82,15 @@
         ready = true; showConnection('Connected'); dialog.close();
         request(); poll = setInterval(request, 10000);
       } else if (msg.type === 'monitor.snapshot') render(msg);
+      else if (msg.type === 'deployment.retry.started' || msg.type === 'deployment.retry.running') {
+        if (typeof msg.name === 'string') { retryJobs[msg.name] = true; channels.filter(function (c) { return c.id === 'deployments'; })[0].retryState(msg.name, 'running'); }
+      } else if (msg.type === 'deployment.retry.result') {
+        if (typeof msg.name === 'string') {
+          delete retryJobs[msg.name];
+          channels.filter(function (c) { return c.id === 'deployments'; })[0].retryState(msg.name, 'done', msg.error || null);
+          request();
+        }
+      }
     };
     socket.onclose = function (event) {
       ready = false; showConnection(event.code === 1008 ? 'Authorization rejected' : 'Disconnected');
