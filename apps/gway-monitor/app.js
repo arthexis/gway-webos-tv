@@ -82,7 +82,7 @@
   document.addEventListener('keydown', function (event) {
     if (dialog.isOpen()) return;
     var code = event.keyCode || event.which;
-    if (code === 33 || code === 34) { event.preventDefault(); switchChannel(channel + (code === 33 ? -1 : 1)); return; }
+    if (code === 33 || code === 34) { event.preventDefault(); switchChannel(channel + (code === 33 ? 1 : -1)); return; }
     if (typeof channels[channel].onKey === 'function' && channels[channel].onKey(code)) { event.preventDefault(); return; }
     if (!ready && code === 13 && url) { event.preventDefault(); dialog.open(); }
   });
