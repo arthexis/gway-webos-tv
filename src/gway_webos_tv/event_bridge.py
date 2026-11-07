@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import subprocess
 import hashlib
 import hmac
 import json
@@ -82,6 +83,8 @@ class Bridge:
         self.monitor_lock = asyncio.Lock()
         self.monitor_cache = None
         self.monitor_cached_at = 0
+        self.deploy_jobs = {}
+        self.deploy_lock = asyncio.Lock()
 
     async def monitor(self):
         async with self.monitor_lock:
@@ -89,6 +92,22 @@ class Bridge:
                 self.monitor_cache = await asyncio.to_thread(snapshot)
                 self.monitor_cached_at = time.monotonic()
             return self.monitor_cache
+
+    async def retry_deployment(self, repository):
+        def execute():
+            try:
+                result = subprocess.run(
+                    ["/usr/local/bin/gway-remote", "deploy", repository, "--follow"],
+                    capture_output=True, text=True, timeout=900, check=False,
+                )
+                return {"success": result.returncode == 0,
+                        "error": None if result.returncode == 0 else "Deployment command failed"}
+            except (OSError, subprocess.TimeoutExpired):
+                return {"success": False, "error": "Deployment command unavailable or timed out"}
+        outcome = await asyncio.to_thread(execute)
+        async with self.monitor_lock:
+            self.monitor_cache = None
+        return outcome
 
     def authorized(self, digest, capability=None):
         try:
@@ -98,7 +117,7 @@ class Bridge:
                 isinstance(item, str) and hmac.compare_digest(digest, item) for item in hashes
             )
             if legacy:
-                return capability != "monitor.read"
+                return capability not in ("monitor.read", "deployment.retry")
             scoped = record.get("scoped", {})
             return (
                 isinstance(scoped, dict)
@@ -202,7 +221,7 @@ class Bridge:
                     if not isinstance(scoped, dict):
                         scoped = {}
                     scoped[session_digest] = (
-                        ["monitor.read"] if app == "gway-monitor" else ["button.pressed"]
+                        ["monitor.read", "deployment.retry"] if app == "gway-monitor" else ["button.pressed"]
                     )
                     write_private(
                         self.directory / "credential.json",
@@ -242,6 +261,43 @@ class Bridge:
                         await ws.close(1008, "Capability denied")
                         return
                     await ws.send(json.dumps(await self.monitor()))
+                    continue
+                if isinstance(data, dict) and data.get("type") == "deployment.retry":
+                    if not self.authorized(session_digest, "deployment.retry"):
+                        await ws.send(json.dumps({"type": "deployment.retry.result", "error": "Permission denied"}))
+                        continue
+                    name = data.get("name")
+                    current = await self.monitor()
+                    components = current.get("deployments", {}).get("components", [])
+                    matches = [item for item in components if item.get("name") == name]
+                    if not isinstance(name, str) or len(matches) != 1:
+                        await ws.send(json.dumps({"type": "deployment.retry.result", "name": name, "error": "Unknown component"}))
+                        continue
+                    item = matches[0]
+                    failed = (str(item.get("installation", "")).lower() in ("failed", "error", "failure")
+                              or str(item.get("health", "")).lower() in ("failed", "error", "unhealthy", "dead")
+                              or bool(item.get("error")))
+                    repository = item.get("repository")
+                    if not failed or not isinstance(repository, str) or not re.fullmatch(r"[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+", repository):
+                        await ws.send(json.dumps({"type": "deployment.retry.result", "name": name, "error": "Not an eligible failed deployment"}))
+                        continue
+                    async with self.deploy_lock:
+                        existing = self.deploy_jobs.get(name)
+                        if existing is not None and not existing.done():
+                            await ws.send(json.dumps({"type": "deployment.retry.running", "name": name}))
+                            continue
+                        self.deploy_jobs[name] = asyncio.create_task(self.retry_deployment(repository))
+                    await ws.send(json.dumps({"type": "deployment.retry.started", "name": name}))
+                    continue
+                if isinstance(data, dict) and data.get("type") == "deployment.retry.status":
+                    name = data.get("name")
+                    task = self.deploy_jobs.get(name) if isinstance(name, str) else None
+                    if not self.authorized(session_digest, "deployment.retry") or task is None:
+                        await ws.send(json.dumps({"type": "deployment.retry.result", "name": name, "error": "No authorized deployment job"}))
+                    elif not task.done():
+                        await ws.send(json.dumps({"type": "deployment.retry.running", "name": name}))
+                    else:
+                        await ws.send(json.dumps({"type": "deployment.retry.result", "name": name, **task.result()}))
                     continue
                 if not isinstance(data, dict) or data.get("type") != "button.pressed":
                     await ws.close(1008, "Unsupported message")
