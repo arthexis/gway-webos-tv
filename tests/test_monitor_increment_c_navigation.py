@@ -40,10 +40,10 @@ assert.equal(node('hardware').hidden,false);
 assert.equal(node('ocpp').hidden,true);
 function key(code){let prevented=false;listeners.keydown({keyCode:code,preventDefault(){prevented=true}});return prevented}
 assert(key(34));
-assert.equal(node('ocpp').hidden,false);
+assert.equal(node('fleet').hidden,false);
 assert(key(33));
 assert.equal(node('hardware').hidden,false);
-assert(key(33));
+assert(key(34));
 assert.equal(node('fleet').hidden,false);
 assert(key(40));
 assert.equal(node('fleet').hidden,false);
