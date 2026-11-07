@@ -12,48 +12,13 @@
   function el(id) { return document.getElementById(id); }
   function value(id, text) { el(id).textContent = text === null || text === undefined || text === '' ? '—' : String(text); }
   function showConnection(text) { value('connection', text); el('reconnect-hint').hidden = ready; }
-  function number(n, suffix) { return typeof n === 'number' && isFinite(n) ? n.toFixed(1) + (suffix || '') : '—'; }
-  function temperature(n) { return number(n, ' °C'); }
-  function duration(seconds) {
-    if (typeof seconds !== 'number' || seconds < 0) return '—';
-    return Math.floor(seconds / 86400) + 'd ' + Math.floor(seconds % 86400 / 3600) + 'h';
-  }
-  function bytes(n) { return typeof n === 'number' && n >= 0 ? (n / 1073741824).toFixed(1) + ' GiB' : '—'; }
-  function address(info) {
-    if (!info || info.present !== true) return 'Not installed';
-    if (info.up !== true) return 'Down';
-    if (!Array.isArray(info.ipv4) || !info.ipv4.length) return 'No IPv4 address';
-    return info.ipv4.join(', ');
-  }
-  function cardsFor(name) { return el(name === 'github' ? 'pr-list' : name === 'fleet' ? 'fleet-list' : 'deployment-list').children; }
-  function highlightCard(name, scroll) {
-    var cards = cardsFor(name);
-    if (!cards.length) return;
-    selectedCard[name] = Math.max(0, Math.min(selectedCard[name], cards.length - 1));
-    Array.prototype.forEach.call(cards, function (card, i) {
-      card.classList.toggle('selected-card', i === selectedCard[name]);
-    });
-    if (scroll) cards[selectedCard[name]].scrollIntoView({block: 'nearest', behavior: 'auto'});
-  }
-  // B2: channel descriptors own navigation metadata; core owns dispatch.
-  var channels = [
-    {id: 'hardware', title: 'Hardware', render: renderHardware},
-    {id: 'ocpp', title: 'OCPP', render: renderOcpp},
-    {id: 'github', title: 'GitHub PRs', render: renderGithub, cards: true},
-    {id: 'deployments', title: 'Deployments', render: renderDeployments, cards: true},
-    {id: 'fleet', title: 'Fleet', render: renderFleet, cards: true}
-  ];
-  var registry = window.GwayChannelRegistry.create(channels, el);
-  function moveCard(delta) {
-    var current = channels[channel];
-    if (!current.cards) return;
-    var name = current.id;
-    var cards = cardsFor(name);
-    if (!cards.length) return;
-    selectedCard[name] = Math.max(0, Math.min(cards.length - 1, selectedCard[name] + delta));
-    highlightCard(name, true);
-  }
+  var channels = ['hardware', 'ocpp', 'github', 'deployments', 'fleet'].map(function (id) {
+    return window.GwayMonitorChannels[id];
+  });
+  var registry = window.GwayChannelRegistry.create(channels, function (id) { return document.getElementById(id); });
   function switchChannel(next) {
+    var previous = channels[channel];
+    if (previous && typeof previous.unmount === 'function') previous.unmount();
     channel = registry.index(next);
     channels.forEach(function (item, i) {
       el(item.id).hidden = channel !== i;
@@ -61,101 +26,7 @@
     });
     value('title', channels[channel].title);
     window.scrollTo(0, 0);
-    if (channels[channel].cards) highlightCard(channels[channel].id, false);
-  }
-  function renderGithub(g) {
-    var node = el('pr-list'); node.textContent = '';
-    if (!g) { value('pr-summary', 'Unavailable'); return; }
-    var prs = g.pull_requests || [];
-    value('pr-summary', prs.length + ' open PRs · ' + (g.repositories || []).length + ' repos' + (g.errors && g.errors.length ? ' · Errors: ' + g.errors.join(', ') : ''));
-    if (!prs.length) { node.textContent = g.errors && g.errors.length ? 'GitHub data unavailable' : 'No open PRs'; return; }
-    prs.forEach(function (pr) {
-      var card = document.createElement('article'); card.className = 'pr-card';
-      var heading = document.createElement('h2'); heading.textContent = pr.repo + ' #' + pr.number;
-      var title = document.createElement('p'); title.textContent = pr.title;
-      var status = document.createElement('p'); status.className = 'muted';
-      status.textContent = (pr.draft ? 'Draft' : 'Open') + ' · CI: ' + pr.ci + ' · Merge: ' + (pr.merge || 'unknown');
-      card.appendChild(heading); card.appendChild(title); card.appendChild(status); node.appendChild(card);
-    });
-    highlightCard('github', false);
-  }
-  function renderDeployments(d) {
-    var node = el('deployment-list'); node.textContent = '';
-    if (!d || !d.available) { value('deployment-summary', 'Deployment data unavailable'); return; }
-    var items = d.components || [];
-    value('deployment-summary', items.length + ' configured components on ' + (d.node || 'gway-001'));
-    if (!items.length) { node.textContent = 'No configured components reported'; return; }
-    items.forEach(function (item) {
-      var card = document.createElement('article'); card.className = 'pr-card';
-      var heading = document.createElement('h2'); heading.textContent = item.repository || item.name;
-      var detail = document.createElement('p'); detail.textContent = 'Revision: ' + (item.revision || 'unknown');
-      var state = document.createElement('p'); state.className = 'muted';
-      state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '');
-      card.appendChild(heading); card.appendChild(detail); card.appendChild(state); node.appendChild(card);
-    });
-    highlightCard('deployments', false);
-  }
-  function renderFleet(f) {
-    var node = el('fleet-list'); node.textContent = '';
-    if (!f || !f.available) { value('fleet-summary', f && f.error ? f.error : 'Fleet inventory unavailable'); return; }
-    var nodes = f.nodes || [];
-    value('fleet-summary', nodes.length + ' enrolled nodes · ' + (f.source || 'Watchtower'));
-    if (!nodes.length) { node.textContent = 'No enrolled nodes'; return; }
-    nodes.forEach(function (item) {
-      var card = document.createElement('article'); card.className = 'pr-card';
-      var heading = document.createElement('h2'); heading.textContent = item.node;
-      var status = document.createElement('p');
-      status.textContent = 'Reachability: ' + item.reachable + ' · Identity: ' + (item.identity_verified ? 'verified' : 'unverified');
-      var observed = document.createElement('p'); observed.className = 'muted';
-      observed.textContent = 'Last observation: ' + (item.observed_at || 'unknown') + ' · Service health: not measured';
-      card.appendChild(heading); card.appendChild(status); card.appendChild(observed); node.appendChild(card);
-    });
-    highlightCard('fleet', false);
-  }
-  function renderHardware(h) {
-    if (!h || h.available !== true) {
-      ['ambient', 'soc', 'model', 'uptime', 'memory', 'disk', 'disk-free', 'eth0', 'wlan0', 'wlan1'].forEach(function (id) { value(id, 'Unavailable'); });
-      return;
-    }
-    value('ambient', temperature(h.ambient_c));
-    value('soc', temperature(h.soc_c));
-    value('model', h.model);
-    value('uptime', duration(h.uptime_seconds));
-    var memory = h.memory || {}, disk = h.disk || {};
-    value('memory', typeof memory.used_percent === 'number' ? number(memory.used_percent, '% used') : '—');
-    value('disk', typeof disk.used_percent === 'number' ? number(disk.used_percent, '% used') : '—');
-    value('disk-free', 'Free: ' + bytes(disk.free_bytes));
-    var ips = h.interfaces || {};
-    ['eth0', 'wlan0', 'wlan1'].forEach(function (id) { value(id, address(ips[id])); });
-  }
-  function renderTransaction(tx, label) {
-    value('tx-title', label);
-    var node = el('tx-content');
-    node.textContent = '';
-    if (!tx) { node.textContent = 'No recorded transaction'; return; }
-    [['Charger', tx.charger_id], ['Connector', tx.connector_id], ['State', tx.state],
-      ['Started', tx.started_at], ['Stopped', tx.stopped_at],
-      ['Energy', typeof tx.energy_wh === 'number' ? number(tx.energy_wh / 1000, ' kWh') : null]]
-      .forEach(function (entry) {
-        var item = document.createElement('div'), title = document.createElement('span'), data = document.createElement('strong');
-        item.className = 'tx-row'; title.textContent = entry[0]; data.textContent = entry[1] == null ? '—' : String(entry[1]);
-        item.appendChild(title); item.appendChild(data); node.appendChild(item);
-      });
-  }
-  function renderOcpp(o) {
-    if (!o || o.available !== true) {
-      value('server', 'Unavailable'); value('storage', 'CSMS status unavailable');
-      value('chargers', '—'); value('tx-title', 'Current / last transaction');
-      value('tx-content', 'Transaction data unavailable'); return;
-    }
-    value('server', o.server && typeof o.server.state === 'string' ? o.server.state : 'Unknown');
-    value('storage', o.storage && typeof o.storage.database === 'string' ? 'Database: ' + o.storage.database + ' · Transactions: ' + (o.storage.transactions || 'unknown') : 'Storage unavailable');
-    value('chargers', String(o.connected_count || 0) + ' / ' + String(o.charger_count || 0));
-    if (!o.active_query_ok || !o.last_query_ok) {
-      value('tx-content', 'Transaction query unavailable');
-      value('tx-title', 'Current / last transaction');
-    } else if (o.current) renderTransaction(o.current, 'Current transaction (recorded)');
-    else renderTransaction(o.last, 'Last transaction (recorded)');
+    if (typeof channels[channel].mount === 'function') channels[channel].mount();
   }
   function render(msg) {
     if (!msg || msg.type !== 'monitor.snapshot') return;
@@ -213,7 +84,7 @@
     if (dialog.isOpen()) return;
     var code = event.keyCode || event.which;
     if (code === 33 || code === 34) { event.preventDefault(); switchChannel(channel + (code === 33 ? -1 : 1)); return; }
-    if ((code === 38 || code === 40) && channels[channel].cards) { event.preventDefault(); moveCard(code === 38 ? -1 : 1); return; }
+    if (typeof channels[channel].onKey === 'function' && channels[channel].onKey(code)) { event.preventDefault(); return; }
     if (!ready && code === 13 && url) { event.preventDefault(); dialog.open(); }
   });
   switchChannel(0);
