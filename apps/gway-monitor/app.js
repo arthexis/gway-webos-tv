@@ -35,22 +35,33 @@
     });
     if (scroll) cards[selectedCard[name]].scrollIntoView({block: 'nearest', behavior: 'auto'});
   }
+  // B2: channel descriptors own navigation metadata; core owns dispatch.
+  var channels = [
+    {id: 'hardware', title: 'Hardware', render: renderHardware},
+    {id: 'ocpp', title: 'OCPP', render: renderOcpp},
+    {id: 'github', title: 'GitHub PRs', render: renderGithub, cards: true},
+    {id: 'deployments', title: 'Deployments', render: renderDeployments, cards: true},
+    {id: 'fleet', title: 'Fleet', render: renderFleet, cards: true}
+  ];
+  var registry = window.GwayChannelRegistry.create(channels, el);
   function moveCard(delta) {
-    var name = channel === 2 ? 'github' : channel === 3 ? 'deployments' : 'fleet';
+    var current = channels[channel];
+    if (!current.cards) return;
+    var name = current.id;
     var cards = cardsFor(name);
     if (!cards.length) return;
     selectedCard[name] = Math.max(0, Math.min(cards.length - 1, selectedCard[name] + delta));
     highlightCard(name, true);
   }
   function switchChannel(next) {
-    channel = (next % 5 + 5) % 5;
-    ['hardware', 'ocpp', 'github', 'deployments', 'fleet'].forEach(function (name, i) {
-      el(name).hidden = channel !== i;
-      el('tab-' + name).className = channel === i ? 'selected' : '';
+    channel = registry.index(next);
+    channels.forEach(function (item, i) {
+      el(item.id).hidden = channel !== i;
+      el('tab-' + item.id).className = channel === i ? 'selected' : '';
     });
-    value('title', ['Hardware', 'OCPP', 'GitHub PRs', 'Deployments', 'Fleet'][channel]);
+    value('title', channels[channel].title);
     window.scrollTo(0, 0);
-    if (channel >= 2) highlightCard(channel === 2 ? 'github' : channel === 3 ? 'deployments' : 'fleet', false);
+    if (channels[channel].cards) highlightCard(channels[channel].id, false);
   }
   function renderGithub(g) {
     var node = el('pr-list'); node.textContent = '';
@@ -153,7 +164,7 @@
       value('freshness', 'Invalid observation time'); return;
     }
     lastObserved = timestamp; lastReceived = Date.now();
-    renderHardware(msg.hardware); renderOcpp(msg.ocpp); renderGithub(msg.github); renderDeployments(msg.deployments); renderFleet(msg.fleet); updateFreshness();
+    registry.render(msg); updateFreshness();
   }
   function updateFreshness() {
     if (!lastReceived) { value('freshness', 'Waiting for data'); return; }
@@ -202,7 +213,7 @@
     if (dialog.isOpen()) return;
     var code = event.keyCode || event.which;
     if (code === 33 || code === 34) { event.preventDefault(); switchChannel(channel + (code === 33 ? -1 : 1)); return; }
-    if ((code === 38 || code === 40) && channel >= 2) { event.preventDefault(); moveCard(code === 38 ? -1 : 1); return; }
+    if ((code === 38 || code === 40) && channels[channel].cards) { event.preventDefault(); moveCard(code === 38 ? -1 : 1); return; }
     if (!ready && code === 13 && url) { event.preventDefault(); dialog.open(); }
   });
   switchChannel(0);
