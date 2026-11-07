@@ -20,7 +20,7 @@ def test_launcher_icons_distinct_and_valid_png(tmp_path):
         output = tmp_path / (name + ".png")
         assert icons.generate_icon(name, output)
         data = output.read_bytes()
-        assert data[:8] == b"\\x89PNG\\r\\n\\x1a\\n"
+        assert data[:8] == bytes.fromhex("89504e470d0a1a0a")
         assert struct.unpack(">II", data[16:24]) == (160, 160)
         images.append(data)
     assert images[0] != images[1]
