@@ -4,7 +4,6 @@ Offline-testable transaction. Requires a pre-provisioned, hash-locked wheelhouse
 no dependency resolution from the network is allowed.
 """
 import argparse
-import hashlib
 import os
 from pathlib import Path
 import re
@@ -29,6 +28,8 @@ def stage(source, root, revision, requirements, wheelhouse, *, runner=run):
         raise ValueError("invalid pinned release")
     if not requirements.is_file() or requirements.is_symlink() or not wheelhouse.is_dir() or wheelhouse.is_symlink():
         raise ValueError("trusted offline dependencies required")
+    from .mcp_wheelhouse import verify
+    verify(requirements, wheelhouse)
     lock = requirements.read_text()
     if not lock.strip() or "--hash=sha256:" not in lock or "--require-hashes" not in lock:
         raise ValueError("hash-locked requirements required")
