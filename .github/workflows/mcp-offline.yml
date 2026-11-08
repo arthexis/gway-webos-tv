@@ -36,6 +36,19 @@ jobs:
           /tmp/webos-offline-venv/bin/python -m pip install --no-index --find-links /tmp/webos-wheels --require-hashes -r /tmp/webos-mcp.lock
           /tmp/webos-offline-venv/bin/python -m pip check
           /tmp/webos-offline-venv/bin/python -c 'import gway_webos_tv.mcp_stdio'
+      - name: Exercise atomic release staging and idempotent second convergence
+        run: |
+          mkdir -p /tmp/webos-release-root/releases
+          PYTHONPATH=src python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          from gway_webos_tv.mcp_release import stage
+          sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          args = (".", "/tmp/webos-release-root", sha, "/tmp/webos-mcp.lock", "/tmp/webos-wheels")
+          assert stage(*args) is True
+          assert stage(*args) is False
+          assert (Path("/tmp/webos-release-root/releases") / sha / "bin/webos-mcp").is_file()
+          PY
       - name: Validate Ansible task syntax offline
         run: |
           python -m pip install ansible-core
