@@ -119,7 +119,7 @@ output. Plain `tv pair` continues to perform normal TV pairing.
 `tv yts QUERY` remain supported. The search aliases share the same
 validation and execution handler, including `--json` results.
 
-## Federated MCP provider (A6)
+## Federated MCP provider
 
 The node-local `webos-mcp` stdio executable implements the existing MCP
 JSON-RPC provider contract (`initialize`, `tools/list`, `tools/call`).
@@ -138,8 +138,7 @@ Watchtower gateway or transport.
 behind the existing authenticated GWay federation. Watchtower enforces OAuth
 scope from the read-only/execute classification before forwarding. The local
 stdio provider is not an OAuth endpoint; direct access to its process must be
-restricted by the node deployment. No deployment or registration is performed
-by A6 itself.
+restricted by the node deployment. Registration is managed by the normal Ansible installation.
 
 
 The normal Ansible installation registers the provider in the existing
@@ -151,8 +150,7 @@ verified manifest atomically; no separate provider activation is required.
 for read-classified tools and `gway:execute` for execute-classified tools.
 The provider follows those effective scopes rather than introducing a new
 `gway:remote` scope. Watchtower must still enforce these scopes before
-forwarding. The provider is not registered or exposed in production by A6.
-Remote capture paths are not accepted; only the existing default local
+forwarding. Remote capture paths are not accepted; only the existing default local
 screenshot destination is used.
 
 ## MCP deployment
