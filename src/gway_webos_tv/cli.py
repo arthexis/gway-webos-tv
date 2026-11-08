@@ -9,6 +9,7 @@ from pathlib import Path
 from . import __version__
 from .client import TV
 from .images import save_image
+from .dispatcher import Operation, dispatch
 from .state import PERMISSIONS, Device, TVError, default_state_path, load_state, save_state
 
 
@@ -83,13 +84,48 @@ def parser():
     return root
 
 
+def normalize(args):
+    """Convert CLI aliases into a canonical operation without executing anything."""
+    command = args.command
+    if command == "pair":
+        return Operation("pair.code" if args.code else "pair")
+    if command == "status":
+        return Operation("status")
+    if command == "inputs":
+        command = "inputs.select" if args.inputs_command == "select" else "inputs.list"
+    elif command == "hdmi":
+        command = "inputs.select"
+    elif command == "apps":
+        command = "apps.launch" if args.apps_command == "launch" else "apps.list"
+    elif command == "launch":
+        command = "apps.launch"
+    elif command in ("screenshot", "sc", "screen"):
+        command = "screen.capture"
+    elif command == "youtube":
+        command = "youtube.search" if args.youtube_command == "search" else "youtube.open"
+    params = {}
+    if command == "inputs.select":
+        params = {"number": args.number, "wait": args.wait}
+    elif command == "apps.launch":
+        params = {"app_id": args.app_id, "wait": args.wait}
+    elif command == "screen.capture":
+        params = {"output": args.output}
+    elif command.startswith("youtube."):
+        params = {"wait": args.wait}
+        if command == "youtube.search":
+            params["query"] = " ".join(args.query)
+    return Operation(command, params)
+
+
 async def run(args):
-    if args.command == "youtube":
+    operation = normalize(args)
+    if operation.name.startswith("youtube."):
         from .youtube import YouTube, validate_query
 
-        query = validate_query(" ".join(args.query)) if args.youtube_command == "search" else None
+        if operation.name == "youtube.search":
+            operation.params["query"] = validate_query(operation.params["query"])
         YouTube.check_dependencies()
-    if args.command == "pair" and args.code:
+    if operation.name == "pair.code":
         if args.json or not sys.stdout.isatty():
             raise TVError("Bridge pairing codes require a private interactive terminal.")
         from .event_bridge import open_local_pairing_window
@@ -97,7 +133,7 @@ async def run(args):
         code = open_local_pairing_window()
         print("Enter this code on the TV within two minutes:", code, flush=True)
         return None
-    pairing = args.command == "pair"
+    pairing = operation.name == "pair"
     path = args.state.expanduser()
     device = load_state(path, required=not pairing)
     if device is None:
@@ -122,21 +158,11 @@ async def run(args):
                 "model": device.model,
                 "state_file": str(path),
             }
-        if args.command == "status":
-            return await tv.status()
-        if args.command == "inputs" and args.inputs_command != "select":
-            return {"inputs": await tv.inputs()}
-        if args.command == "apps" and args.apps_command != "launch":
-            return {"apps": await tv.apps()}
-        if args.command == "hdmi" or (args.command == "inputs" and args.inputs_command == "select"):
-            return await tv.hdmi(args.number, args.wait)
-        if args.command == "launch" or (args.command == "apps" and args.apps_command == "launch"):
-            return await tv.launch(args.app_id, args.wait)
-        if args.command == "youtube":
-            return await YouTube(tv, wait=args.wait).run(query)
-        data, extension = await tv.capture()
-        output = save_image(data, extension, args.output)
-        return {"path": str(output), "bytes": len(data), "source": "tv", "format": extension[1:]}
+        if operation.name.startswith("youtube."):
+            from .youtube import YouTube
+        else:
+            YouTube = None
+        return await dispatch(tv, operation, save_capture=save_image, youtube_factory=YouTube)
     finally:
         await tv.close()
 
