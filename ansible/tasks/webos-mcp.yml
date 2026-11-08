@@ -34,7 +34,7 @@
       - webos_mcp_registry.stat.isdir | default(false)
       - not (webos_mcp_registry.stat.islnk | default(false))
       - webos_mcp_registry.stat.pw_name == 'root'
-      - webos_mcp_registry.stat.mode not in ['0777', '0775', '0770']
+      - webos_mcp_registry.stat.mode is match('^0?[0-7]*[0-5][0-7]
 
 - name: Inspect existing WebOS manifest
   become: true
@@ -68,7 +68,414 @@
   ansible.builtin.assert:
     that:
       - not (webos_mcp_release.stat.islnk | default(false))
-      - not (webos_mcp_release.stat.exists | default(false)) or (webos_mcp_release.stat.isdir | default(false) and webos_mcp_release.stat.pw_name == 'root' and webos_mcp_release.stat.mode not in ['0777', '0775', '0770'])
+      - not (webos_mcp_release.stat.exists | default(false)) or (webos_mcp_release.stat.isdir | default(false) and webos_mcp_release.stat.pw_name == 'root' and webos_mcp_release.stat.mode is match('^0?[0-7]*[0-5][0-7])
+
+- name: Stage and register pinned WebOS MCP release
+  block:
+    - name: Create managed releases directory
+      become: true
+      ansible.builtin.file:
+        path: /opt/gway-webos-tv/releases
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Require pre-provisioned offline dependency lock and wheelhouse
+      become: true
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      loop:
+        - /etc/gway-webos-tv/mcp-requirements.lock
+        - /opt/gway-webos-tv/wheelhouse
+      register: webos_mcp_deps
+
+    - name: Refuse unprovisioned dependency inputs
+      ansible.builtin.assert:
+        that:
+          - webos_mcp_deps.results[0].stat.isreg | default(false)
+          - webos_mcp_deps.results[0].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[0].stat.islnk | default(false))
+          - webos_mcp_deps.results[1].stat.isdir | default(false)
+          - webos_mcp_deps.results[1].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[1].stat.islnk | default(false))
+
+    - name: Stage and atomically promote pinned offline release
+      become: true
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - -m
+          - gway_webos_tv.mcp_release
+          - --source
+          - "{{ gway_webos_repo }}"
+          - --root
+          - /opt/gway-webos-tv
+          - --revision
+          - "{{ gway_webos_mcp_revision }}"
+          - --requirements
+          - /etc/gway-webos-tv/mcp-requirements.lock
+          - --wheelhouse
+          - /opt/gway-webos-tv/wheelhouse
+      environment:
+        PYTHONPATH: "{{ gway_webos_repo }}/src"
+      register: webos_mcp_stage
+      changed_when: not (webos_mcp_release.stat.exists | default(false))
+
+    - name: Verify pinned provider executable and manifest contract
+      become: true
+      ansible.builtin.command:
+        argv:
+          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}/bin/python"
+          - -m
+          - gway_webos_tv.mcp_manifest
+          - --release
+          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+      register: webos_mcp_manifest
+      changed_when: false
+
+    - name: Assert exact node-owned manifest identity
+      ansible.builtin.assert:
+        that:
+          - (webos_mcp_manifest.stdout | from_json).source_id == 'webos'
+          - (webos_mcp_manifest.stdout | from_json).revision == gway_webos_mcp_revision
+          - (webos_mcp_manifest.stdout | from_json).argv | length == 1
+          - (webos_mcp_manifest.stdout | from_json).argv[0] == (webos_mcp_manifest.stdout | from_json).executable
+
+    - name: Publish verified manifest atomically using Ansible copy
+      become: true
+      ansible.builtin.copy:
+        content: "{{ webos_mcp_manifest.stdout | from_json | to_nice_json }}\n"
+        dest: /etc/gway-mcp-providers/webos.json
+        owner: root
+        group: root
+        mode: '0644'
+      # copy uses a temporary file and atomic rename by default.
+  rescue:
+    - name: Restore original manifest after failed convergence
+      become: true
+      ansible.builtin.copy:
+        content: "{{ webos_mcp_previous.content | b64decode }}"
+        dest: /etc/gway-mcp-providers/webos.json
+        owner: root
+        group: root
+        mode: '0644'
+      when: webos_mcp_old_stat.stat.exists | default(false)
+      no_log: true
+
+    - name: Remove newly created manifest after failed convergence
+      become: true
+      ansible.builtin.file:
+        path: /etc/gway-mcp-providers/webos.json
+        state: absent
+      when: not (webos_mcp_old_stat.stat.exists | default(false))
+
+    - name: Remove newly staged release on failed convergence
+      become: true
+      ansible.builtin.file:
+        path: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+        state: absent
+      when: not (webos_mcp_release.stat.exists | default(false))
+
+    - name: Stop on MCP release convergence failure
+      ansible.builtin.fail:
+        msg: "WebOS MCP convergence failed; previous manifest restored"
+)
+
+- name: Inspect existing WebOS manifest
+  become: true
+  ansible.builtin.stat:
+    path: /etc/gway-mcp-providers/webos.json
+    follow: false
+  register: webos_mcp_old_stat
+
+- name: Refuse symlinked or unowned manifest
+  ansible.builtin.assert:
+    that:
+      - not (webos_mcp_old_stat.stat.islnk | default(false))
+      - not (webos_mcp_old_stat.stat.exists | default(false)) or (webos_mcp_old_stat.stat.isreg | default(false) and webos_mcp_old_stat.stat.pw_name == 'root')
+
+- name: Preserve previous manifest for rollback
+  become: true
+  ansible.builtin.slurp:
+    src: /etc/gway-mcp-providers/webos.json
+  register: webos_mcp_previous
+  when: webos_mcp_old_stat.stat.exists | default(false)
+  no_log: true
+
+- name: Inspect pinned immutable release
+  become: true
+  ansible.builtin.stat:
+    path: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+    follow: false
+  register: webos_mcp_release
+
+- name: Refuse unsafe existing release
+  ansible.builtin.assert:
+    that:
+      - not (webos_mcp_release.stat.islnk | default(false))
+      - not (webos_mcp_release.stat.exists | default(false)) or (webos_mcp_release.stat.isdir | default(false) and webos_mcp_release.stat.pw_name == 'root' and (webos_mcp_release.stat.mode | int(base=8) | bitwise_and(18)) == 0)
+
+- name: Stage and register pinned WebOS MCP release
+  block:
+    - name: Create managed releases directory
+      become: true
+      ansible.builtin.file:
+        path: /opt/gway-webos-tv/releases
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Require pre-provisioned offline dependency lock and wheelhouse
+      become: true
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      loop:
+        - /etc/gway-webos-tv/mcp-requirements.lock
+        - /opt/gway-webos-tv/wheelhouse
+      register: webos_mcp_deps
+
+    - name: Refuse unprovisioned dependency inputs
+      ansible.builtin.assert:
+        that:
+          - webos_mcp_deps.results[0].stat.isreg | default(false)
+          - webos_mcp_deps.results[0].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[0].stat.islnk | default(false))
+          - webos_mcp_deps.results[1].stat.isdir | default(false)
+          - webos_mcp_deps.results[1].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[1].stat.islnk | default(false))
+
+    - name: Stage and atomically promote pinned offline release
+      become: true
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - -m
+          - gway_webos_tv.mcp_release
+          - --source
+          - "{{ gway_webos_repo }}"
+          - --root
+          - /opt/gway-webos-tv
+          - --revision
+          - "{{ gway_webos_mcp_revision }}"
+          - --requirements
+          - /etc/gway-webos-tv/mcp-requirements.lock
+          - --wheelhouse
+          - /opt/gway-webos-tv/wheelhouse
+      environment:
+        PYTHONPATH: "{{ gway_webos_repo }}/src"
+      register: webos_mcp_stage
+      changed_when: not (webos_mcp_release.stat.exists | default(false))
+
+    - name: Verify pinned provider executable and manifest contract
+      become: true
+      ansible.builtin.command:
+        argv:
+          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}/bin/python"
+          - -m
+          - gway_webos_tv.mcp_manifest
+          - --release
+          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+      register: webos_mcp_manifest
+      changed_when: false
+
+    - name: Assert exact node-owned manifest identity
+      ansible.builtin.assert:
+        that:
+          - (webos_mcp_manifest.stdout | from_json).source_id == 'webos'
+          - (webos_mcp_manifest.stdout | from_json).revision == gway_webos_mcp_revision
+          - (webos_mcp_manifest.stdout | from_json).argv | length == 1
+          - (webos_mcp_manifest.stdout | from_json).argv[0] == (webos_mcp_manifest.stdout | from_json).executable
+
+    - name: Publish verified manifest atomically using Ansible copy
+      become: true
+      ansible.builtin.copy:
+        content: "{{ webos_mcp_manifest.stdout | from_json | to_nice_json }}\n"
+        dest: /etc/gway-mcp-providers/webos.json
+        owner: root
+        group: root
+        mode: '0644'
+      # copy uses a temporary file and atomic rename by default.
+  rescue:
+    - name: Restore original manifest after failed convergence
+      become: true
+      ansible.builtin.copy:
+        content: "{{ webos_mcp_previous.content | b64decode }}"
+        dest: /etc/gway-mcp-providers/webos.json
+        owner: root
+        group: root
+        mode: '0644'
+      when: webos_mcp_old_stat.stat.exists | default(false)
+      no_log: true
+
+    - name: Remove newly created manifest after failed convergence
+      become: true
+      ansible.builtin.file:
+        path: /etc/gway-mcp-providers/webos.json
+        state: absent
+      when: not (webos_mcp_old_stat.stat.exists | default(false))
+
+    - name: Remove newly staged release on failed convergence
+      become: true
+      ansible.builtin.file:
+        path: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+        state: absent
+      when: not (webos_mcp_release.stat.exists | default(false))
+
+    - name: Stop on MCP release convergence failure
+      ansible.builtin.fail:
+        msg: "WebOS MCP convergence failed; previous manifest restored"
+))
+
+- name: Stage and register pinned WebOS MCP release
+  block:
+    - name: Create managed releases directory
+      become: true
+      ansible.builtin.file:
+        path: /opt/gway-webos-tv/releases
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Require pre-provisioned offline dependency lock and wheelhouse
+      become: true
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      loop:
+        - /etc/gway-webos-tv/mcp-requirements.lock
+        - /opt/gway-webos-tv/wheelhouse
+      register: webos_mcp_deps
+
+    - name: Refuse unprovisioned dependency inputs
+      ansible.builtin.assert:
+        that:
+          - webos_mcp_deps.results[0].stat.isreg | default(false)
+          - webos_mcp_deps.results[0].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[0].stat.islnk | default(false))
+          - webos_mcp_deps.results[1].stat.isdir | default(false)
+          - webos_mcp_deps.results[1].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[1].stat.islnk | default(false))
+
+    - name: Stage and atomically promote pinned offline release
+      become: true
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - -m
+          - gway_webos_tv.mcp_release
+          - --source
+          - "{{ gway_webos_repo }}"
+          - --root
+          - /opt/gway-webos-tv
+          - --revision
+          - "{{ gway_webos_mcp_revision }}"
+          - --requirements
+          - /etc/gway-webos-tv/mcp-requirements.lock
+          - --wheelhouse
+          - /opt/gway-webos-tv/wheelhouse
+      environment:
+        PYTHONPATH: "{{ gway_webos_repo }}/src"
+      register: webos_mcp_stage
+      changed_when: not (webos_mcp_release.stat.exists | default(false))
+
+    - name: Verify pinned provider executable and manifest contract
+      become: true
+      ansible.builtin.command:
+        argv:
+          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}/bin/python"
+          - -m
+          - gway_webos_tv.mcp_manifest
+          - --release
+          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+      register: webos_mcp_manifest
+      changed_when: false
+
+    - name: Assert exact node-owned manifest identity
+      ansible.builtin.assert:
+        that:
+          - (webos_mcp_manifest.stdout | from_json).source_id == 'webos'
+          - (webos_mcp_manifest.stdout | from_json).revision == gway_webos_mcp_revision
+          - (webos_mcp_manifest.stdout | from_json).argv | length == 1
+          - (webos_mcp_manifest.stdout | from_json).argv[0] == (webos_mcp_manifest.stdout | from_json).executable
+
+    - name: Publish verified manifest atomically using Ansible copy
+      become: true
+      ansible.builtin.copy:
+        content: "{{ webos_mcp_manifest.stdout | from_json | to_nice_json }}\n"
+        dest: /etc/gway-mcp-providers/webos.json
+        owner: root
+        group: root
+        mode: '0644'
+      # copy uses a temporary file and atomic rename by default.
+  rescue:
+    - name: Restore original manifest after failed convergence
+      become: true
+      ansible.builtin.copy:
+        content: "{{ webos_mcp_previous.content | b64decode }}"
+        dest: /etc/gway-mcp-providers/webos.json
+        owner: root
+        group: root
+        mode: '0644'
+      when: webos_mcp_old_stat.stat.exists | default(false)
+      no_log: true
+
+    - name: Remove newly created manifest after failed convergence
+      become: true
+      ansible.builtin.file:
+        path: /etc/gway-mcp-providers/webos.json
+        state: absent
+      when: not (webos_mcp_old_stat.stat.exists | default(false))
+
+    - name: Remove newly staged release on failed convergence
+      become: true
+      ansible.builtin.file:
+        path: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+        state: absent
+      when: not (webos_mcp_release.stat.exists | default(false))
+
+    - name: Stop on MCP release convergence failure
+      ansible.builtin.fail:
+        msg: "WebOS MCP convergence failed; previous manifest restored"
+)
+
+- name: Inspect existing WebOS manifest
+  become: true
+  ansible.builtin.stat:
+    path: /etc/gway-mcp-providers/webos.json
+    follow: false
+  register: webos_mcp_old_stat
+
+- name: Refuse symlinked or unowned manifest
+  ansible.builtin.assert:
+    that:
+      - not (webos_mcp_old_stat.stat.islnk | default(false))
+      - not (webos_mcp_old_stat.stat.exists | default(false)) or (webos_mcp_old_stat.stat.isreg | default(false) and webos_mcp_old_stat.stat.pw_name == 'root')
+
+- name: Preserve previous manifest for rollback
+  become: true
+  ansible.builtin.slurp:
+    src: /etc/gway-mcp-providers/webos.json
+  register: webos_mcp_previous
+  when: webos_mcp_old_stat.stat.exists | default(false)
+  no_log: true
+
+- name: Inspect pinned immutable release
+  become: true
+  ansible.builtin.stat:
+    path: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+    follow: false
+  register: webos_mcp_release
+
+- name: Refuse unsafe existing release
+  ansible.builtin.assert:
+    that:
+      - not (webos_mcp_release.stat.islnk | default(false))
+      - not (webos_mcp_release.stat.exists | default(false)) or (webos_mcp_release.stat.isdir | default(false) and webos_mcp_release.stat.pw_name == 'root' and (webos_mcp_release.stat.mode | int(base=8) | bitwise_and(18)) == 0)
 
 - name: Stage and register pinned WebOS MCP release
   block:
