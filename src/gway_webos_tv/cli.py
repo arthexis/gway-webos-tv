@@ -118,7 +118,7 @@ async def run(args):
             return await tv.status()
         if args.command == "inputs":
             return {"inputs": await tv.inputs()}
-        if args.command == "apps":
+        if args.command == "apps" and args.apps_command != "launch":
             return {"apps": await tv.apps()}
         if args.command == "hdmi":
             return await tv.hdmi(args.number, args.wait)
