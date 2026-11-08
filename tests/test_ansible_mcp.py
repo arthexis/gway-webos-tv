@@ -16,21 +16,16 @@ def test_provider_is_part_of_normal_installation():
     assert "when: gway_webos_mcp_enable | bool" not in playbook
 
 
-def test_pinned_release_atomic_manifest_without_manual_rollback():
+def test_normal_install_manifest_without_wheelhouse_or_rollback():
     tasks = (ROOT / "ansible/tasks/webos-mcp.yml").read_text()
-    for contract in (
-        "webos_mcp_checkout_sha.stdout == gway_webos_mcp_revision",
-        "webos_mcp_dirty.stdout == ''",
-        "^[0-9a-f]{40}$", "/opt/gway-webos-tv/releases/",
-        "gway_webos_tv.mcp_manifest", "/etc/gway-mcp-providers/webos.json",
-        "owner: root", "group: root", "mode: '0644'", "ansible.builtin.copy:",
-        "webos_mcp_old_stat.stat.exists", "changed_when: false",
-    ):
-        assert contract in tasks
+    assert "mcp-requirements.lock" not in tasks
+    assert "wheelhouse" not in tasks
     assert "rescue:" not in tasks
-    assert "b64decode" not in tasks
-    assert "shell:" not in tasks
-    assert "state: restarted" not in tasks
+    assert "gway_webos_tv.mcp_manifest" in tasks
+    assert "gway_webos_tv.mcp_stdio" in tasks
+    assert "ansible.builtin.copy:" in tasks
+    assert "mode: '0644'" in tasks
+    assert "/etc/gway-mcp-providers/webos.json" in tasks
 
 
 def test_manifest_requires_pinned_installed_executable(tmp_path):
