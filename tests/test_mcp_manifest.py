@@ -1,4 +1,4 @@
-"""Node-owned provider manifest validation without registration or deployment."""
+"""Node-owned provider manifest validation."""
 
 import json
 
@@ -13,7 +13,7 @@ def test_manifest_pinned_executable(tmp_path):
     executable.parent.mkdir(parents=True)
     executable.write_text("#!/bin/sh\n")
     executable.chmod(0o700)
-    result = manifest(release)
+    result = manifest("a" * 40, executable)
     assert result == {"source_id": "webos", "revision": "a" * 40,
                       "executable": str(executable), "argv": [str(executable)]}
     assert json.loads(json.dumps(result)) == result
@@ -31,4 +31,4 @@ def test_manifest_rejects_unpinned_and_nonexecutable(tmp_path):
     target.parent.mkdir(parents=True)
     target.write_text("not executable")
     with pytest.raises(ValueError, match="executable missing"):
-        manifest(pinned)
+        manifest("b" * 40, target)
