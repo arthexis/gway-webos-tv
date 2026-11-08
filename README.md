@@ -119,6 +119,34 @@ output. Plain `tv pair` continues to perform normal TV pairing.
 `tv yts QUERY` remain supported. The search aliases share the same
 validation and execution handler, including `--json` results.
 
+## Federated MCP provider (A6)
+
+The node-local `webos-mcp` stdio executable implements the existing MCP
+JSON-RPC provider contract (`initialize`, `tools/list`, `tools/call`).
+It advertises exactly two local names: `read` and `execute`. The existing
+GWay federation prefixes these as `webos__read` and `webos__execute` when
+the `webos` source is registered on the node. It does **not** create another
+Watchtower gateway or transport.
+
+- `read`: `status`, `inputs.list`, `apps.list`.
+- `execute`: `inputs.select`, `apps.launch`, `screen.capture`,
+  `youtube.open`, `youtube.search`.
+- `pair` and `pair.code` are intentionally not exposed, and arbitrary
+  shell commands are rejected.
+
+**Security boundary:** Run `webos-mcp` only as a trusted node-local provider
+behind the existing authenticated GWay federation. Watchtower enforces OAuth
+scope from the read-only/execute classification before forwarding. The local
+stdio provider is not an OAuth endpoint; direct access to its process must be
+restricted by the node deployment. No deployment or registration is performed
+by A6 itself.
+
+**Scope compatibility note:** The intended read scope is `gway:remote`, but
+the current live Watchtower catalog reports `gway:read` for existing read
+tools. The gateway's actual authorization mapping must be reconciled before
+production registration; do not assume the new provider is exposed until
+that is verified. Execute uses `gway:execute`.
+
 ## Pairing state and compatibility
 
 The default state file is `$XDG_STATE_HOME/gway-webos-tv/device.json`, falling
