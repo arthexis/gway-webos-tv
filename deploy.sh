@@ -54,6 +54,19 @@ esac
 
 marker="$state_dir/deployed.sha"
 release_key="$local_sha $listen"
+current=$(cat "$marker" 2>/dev/null || true)
+runtime_dir="/run/user/$(id -u)"
+if [ "$current" = "$release_key" ] &&
+    [ -x "$HOME/.local/bin/tv" ] &&
+    [ -x "$HOME/.local/bin/gway-tv" ] &&
+    [ -f /etc/gway-mcp-providers/webos.json ] &&
+    [ -x /usr/local/bin/gway-webos-mcp ] &&
+    XDG_RUNTIME_DIR="$runtime_dir" systemctl --user is-active --quiet gway-webos-event-bridge.service &&
+    XDG_RUNTIME_DIR="$runtime_dir" systemctl --user is-enabled --quiet gway-webos-event-bridge.service &&
+    "$HOME/.local/bin/tv" --help >/dev/null 2>&1; then
+    echo "GWAY TV already deployed at main SHA $local_sha; no changes."
+    exit 0
+fi
 started=$(date +%s)
 ansible-playbook "$ROOT/ansible/deploy.yml" -i 'gway_tv,' -c local \
     -e "gway_webos_bridge_listen=$listen"
