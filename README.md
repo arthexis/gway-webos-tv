@@ -141,11 +141,13 @@ stdio provider is not an OAuth endpoint; direct access to its process must be
 restricted by the node deployment. No deployment or registration is performed
 by A6 itself.
 
-**Scope compatibility note:** The intended read scope is `gway:remote`, but
-the current live Watchtower catalog reports `gway:read` for existing read
-tools. The gateway's actual authorization mapping must be reconciled before
-production registration; do not assume the new provider is exposed until
-that is verified. Execute uses `gway:execute`.
+**Scope contract:** The live Watchtower federation advertises `gway:read`
+for read-classified tools and `gway:execute` for execute-classified tools.
+The provider follows those effective scopes rather than introducing a new
+`gway:remote` scope. Watchtower must still enforce these scopes before
+forwarding. The provider is not registered or exposed in production by A6.
+Remote capture paths are not accepted; only the existing default local
+screenshot destination is used.
 
 ## Pairing state and compatibility
 
