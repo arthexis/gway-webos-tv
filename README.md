@@ -177,8 +177,7 @@ or production credentials are committed. A7 does not ship a dependency lock or e
 production installation. It stages an isolated release and promotes it
 atomically only after validation, then validates `webos-mcp` through the
 manifest generator and uses Ansible's atomic copy to publish root-owned
-`webos.json`. The previous manifest is preserved and restored on task
-failure; a newly promoted release is removed if subsequent publication fails. An already verified release is reused without reinstalling it.
+`webos.json`. A failed convergence leaves the previously published manifest unchanged;\nrecovery is a new declarative convergence to the desired revision. An already verified release is reused without reinstalling it.
 The provider is not activated or registered merely by merging A7.
 
 **Important:** Do not enable this task in production until the existing
