@@ -39,16 +39,22 @@ def parser():
     pair = commands.add_parser("pair", help="Pair TV control or open a local GWAY Monitor pairing window")
     pair.add_argument("--code", action="store_true", help="Generate a six-digit GWAY Monitor pairing code locally")
     commands.add_parser("status", help="Read TV identity and foreground input/app")
-    commands.add_parser("inputs", help="List the TV's external inputs")
-    hdmi = commands.add_parser("hdmi", help="Switch to an HDMI input and verify it is active")
-    hdmi.add_argument("number", type=int, choices=range(1, 9), metavar="1-8")
-    hdmi.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
-    capture = commands.add_parser(
-        "screenshot", aliases=["sc"], help="Capture the TV's native screen"
-    )
-    capture.add_argument(
-        "output", type=Path, nargs="?", help="New JPEG/PNG file (default: ~/screenshots)"
-    )
+    inputs = commands.add_parser("inputs", help="List or select external TV inputs")
+    input_actions = inputs.add_subparsers(dest="inputs_command")
+    input_actions.add_parser("list", help="List the TV's external inputs")
+    input_select = input_actions.add_parser("select", help="Select and verify an HDMI input")
+    hdmi = commands.add_parser("hdmi", help="Legacy alias for inputs select")
+    for select in (input_select, hdmi):
+        select.add_argument("number", type=int, choices=range(1, 9), metavar="1-8")
+        select.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
+    screen = commands.add_parser("screen", help="Screen operations")
+    screen_actions = screen.add_subparsers(dest="screen_command", required=True)
+    screen_capture = screen_actions.add_parser("capture", help="Capture the TV's native screen")
+    legacy_capture = commands.add_parser("screenshot", aliases=["sc"], help="Legacy screen capture")
+    for capture in (screen_capture, legacy_capture):
+        capture.add_argument(
+            "output", type=Path, nargs="?", help="New JPEG/PNG file (default: ~/screenshots)"
+        )
     apps = commands.add_parser("apps", help="List or manage TV applications")
     apps_actions = apps.add_subparsers(dest="apps_command")
     apps_actions.add_parser("list", help="List installed app IDs, names and versions")
@@ -116,11 +122,11 @@ async def run(args):
             }
         if args.command == "status":
             return await tv.status()
-        if args.command == "inputs":
+        if args.command == "inputs" and args.inputs_command != "select":
             return {"inputs": await tv.inputs()}
         if args.command == "apps" and args.apps_command != "launch":
             return {"apps": await tv.apps()}
-        if args.command == "hdmi":
+        if args.command == "hdmi" or (args.command == "inputs" and args.inputs_command == "select"):
             return await tv.hdmi(args.number, args.wait)
         if args.command == "launch" or (args.command == "apps" and args.apps_command == "launch"):
             return await tv.launch(args.app_id, args.wait)
