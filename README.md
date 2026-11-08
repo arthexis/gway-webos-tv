@@ -88,6 +88,26 @@ image sent by GWAY as well as TV-rendered content supported by the firmware.
 The tested TV returns **960×540 JPEG**. Protected video can be excluded by the
 TV. The CLI checks the actual format and never labels JPEG bytes as PNG.
 
+## Grouped CLI commands (A1–A3)
+
+The canonical commands group related operations without adding another executable:
+
+```sh
+tv apps list
+tv apps launch com.webos.app.browser
+tv inputs list
+tv inputs select 2 --wait 60
+tv screen capture
+tv screen capture capture.jpg
+tv --json inputs list
+tv --json inputs select 2
+tv --json screen capture capture.jpg
+```
+
+Existing `tv apps`, `tv launch`, `tv inputs`, `tv hdmi`, `tv screenshot`,
+and `tv sc` remain supported with the same arguments, behavior, and JSON
+result shapes. `tv` and `gway-tv` still share the same entrypoint.
+
 ## Pairing state and compatibility
 
 The default state file is `$XDG_STATE_HOME/gway-webos-tv/device.json`, falling
