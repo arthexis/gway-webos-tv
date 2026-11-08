@@ -171,6 +171,13 @@
         state: absent
       when: not (webos_mcp_old_stat.stat.exists | default(false))
 
+    - name: Remove newly staged release on failed convergence
+      become: true
+      ansible.builtin.file:
+        path: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
+        state: absent
+      when: not (webos_mcp_release.stat.exists | default(false))
+
     - name: Stop on MCP release convergence failure
       ansible.builtin.fail:
         msg: "WebOS MCP convergence failed; previous manifest restored"
