@@ -15,7 +15,7 @@ def fixture(tmp_path):
     wheelhouse = tmp_path / "wheels"
     wheelhouse.mkdir()
     lock = tmp_path / "requirements.lock"
-    lock.write_text("--require-hashes\nexample==1.0 --hash=sha256:" + "a" * 64 + "\n")
+    lock.write_text("--require-hashes\ngway-webos-tv==0.2.0 --hash=sha256:" + "a" * 64 + "\n")
     return source, root, "a" * 40, lock, wheelhouse
 
 
@@ -52,7 +52,7 @@ def test_rejects_unlocked_dependencies_and_symlinked_release(tmp_path):
     lock.write_text("example>=1\n")
     with pytest.raises(ValueError, match="hash-locked"):
         stage(source, root, sha, lock, wheels, runner=fake_runner([]))
-    lock.write_text("--require-hashes\nexample==1 --hash=sha256:" + "a" * 64)
+    lock.write_text("--require-hashes\ngway-webos-tv==0.2.0 --hash=sha256:" + "a" * 64)
     (root / "releases" / sha).symlink_to(wheels, target_is_directory=True)
     with pytest.raises(ValueError, match="symlinked"):
         stage(source, root, sha, lock, wheels, runner=fake_runner([]))
