@@ -81,27 +81,47 @@
         group: root
         mode: '0755'
 
-    - name: Create isolated immutable-release virtual environment
+    - name: Require pre-provisioned offline dependency lock and wheelhouse
+      become: true
+      ansible.builtin.stat:
+        path: "{{ item }}"
+        follow: false
+      loop:
+        - /etc/gway-webos-tv/mcp-requirements.lock
+        - /opt/gway-webos-tv/wheelhouse
+      register: webos_mcp_deps
+
+    - name: Refuse unprovisioned dependency inputs
+      ansible.builtin.assert:
+        that:
+          - webos_mcp_deps.results[0].stat.isreg | default(false)
+          - webos_mcp_deps.results[0].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[0].stat.islnk | default(false))
+          - webos_mcp_deps.results[1].stat.isdir | default(false)
+          - webos_mcp_deps.results[1].stat.pw_name == 'root'
+          - not (webos_mcp_deps.results[1].stat.islnk | default(false))
+
+    - name: Stage and atomically promote pinned offline release
       become: true
       ansible.builtin.command:
         argv:
           - /usr/bin/python3
           - -m
-          - venv
-          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
-      args:
-        creates: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}/bin/python"
-      when: not (webos_mcp_release.stat.exists | default(false))
-
-    - name: Install reviewed source into pinned environment
-      become: true
-      ansible.builtin.command:
-        argv:
-          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}/bin/pip"
-          - install
-          - --no-editable
+          - gway_webos_tv.mcp_release
+          - --source
           - "{{ gway_webos_repo }}"
-      when: not (webos_mcp_release.stat.exists | default(false))
+          - --root
+          - /opt/gway-webos-tv
+          - --revision
+          - "{{ gway_webos_mcp_revision }}"
+          - --requirements
+          - /etc/gway-webos-tv/mcp-requirements.lock
+          - --wheelhouse
+          - /opt/gway-webos-tv/wheelhouse
+      environment:
+        PYTHONPATH: "{{ gway_webos_repo }}/src"
+      register: webos_mcp_stage
+      changed_when: not (webos_mcp_release.stat.exists | default(false))
 
     - name: Verify pinned provider executable and manifest contract
       become: true
