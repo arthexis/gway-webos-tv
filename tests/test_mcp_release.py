@@ -16,7 +16,10 @@ def fixture(tmp_path):
     wheelhouse = tmp_path / "wheels"
     wheelhouse.mkdir()
     lock = tmp_path / "requirements.lock"
-    lock.write_text("--require-hashes\ngway-webos-tv==0.2.0 --hash=sha256:" + "a" * 64 + "\n")
+    wheel = wheelhouse / "gway_webos_tv-0.2.0-py3-none-any.whl"
+    wheel.write_bytes(b"offline test wheel")
+    digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    lock.write_text("--require-hashes\ngway-webos-tv==0.2.0 --hash=sha256:" + digest + "\n")
     return source, root, "a" * 40, lock, wheelhouse
 
 
