@@ -8,6 +8,8 @@ import argparse
 import hashlib
 from pathlib import Path
 import re
+from packaging.tags import sys_tags
+from packaging.utils import canonicalize_name, parse_wheel_filename
 
 ENTRY = re.compile(r"^([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+!-]+)\s+--hash=sha256:([0-9a-f]{64})$")
 
@@ -20,6 +22,7 @@ def verify(lockfile, wheelhouse):
     if not lines or lines[0].strip() != "--require-hashes":
         raise ValueError("hash mode required")
     packages = set()
+    compatible_tags = set(sys_tags())
     for line in lines[1:]:
         line = line.strip()
         if not line or line.startswith("#"):
@@ -32,8 +35,17 @@ def verify(lockfile, wheelhouse):
         if normalized in packages:
             raise ValueError("duplicate package")
         packages.add(normalized)
-        candidates = [p for p in wheelhouse.iterdir() if p.is_file() and not p.is_symlink()
-                      and p.suffix == ".whl" and p.name.lower().startswith(normalized + "-" + version.lower() + "-")]
+        candidates = []
+        for wheel in wheelhouse.iterdir():
+            if wheel.is_symlink() or not wheel.is_file() or wheel.suffix != ".whl":
+                continue
+            try:
+                wheel_name, wheel_version, _, wheel_tags = parse_wheel_filename(wheel.name)
+            except ValueError as exc:
+                raise ValueError("invalid wheel filename") from exc
+            if (canonicalize_name(wheel_name) == canonicalize_name(name)
+                    and str(wheel_version) == version and wheel_tags & compatible_tags):
+                candidates.append(wheel)
         if not candidates or not any(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p in candidates):
             raise ValueError("missing or mismatched wheel: " + name)
     if "gway_webos_tv" not in packages:
