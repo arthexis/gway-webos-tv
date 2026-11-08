@@ -55,7 +55,7 @@
   ansible.builtin.assert:
     that:
       - not (webos_mcp_release.stat.islnk | default(false))
-      - not (webos_mcp_release.stat.exists | default(false)) or (webos_mcp_release.stat.isdir | default(false) and webos_mcp_release.stat.pw_name == 'root')
+      - not (webos_mcp_release.stat.exists | default(false)) or (webos_mcp_release.stat.isdir | default(false) and webos_mcp_release.stat.pw_name == 'root' and webos_mcp_release.stat.mode not in ['0777', '0775', '0770'])
 
 - name: Stage and register pinned WebOS MCP release
   block:
