@@ -19,7 +19,8 @@ def test_opt_in_in_existing_playbook():
 def test_pinned_release_atomic_manifest_and_rollback_contract():
     tasks = (ROOT / "ansible/tasks/webos-mcp.yml").read_text()
     for contract in (
-        "gway_webos_checkout.after == gway_webos_mcp_revision",
+        "webos_mcp_checkout_sha.stdout == gway_webos_mcp_revision",
+        "webos_mcp_dirty.stdout == ''",
         "^[0-9a-f]{40}$", "/opt/gway-webos-tv/releases/",
         "gway_webos_tv.mcp_manifest", "/etc/gway-mcp-providers/webos.json",
         "owner: root", "group: root", "mode: '0644'", "ansible.builtin.copy:",
