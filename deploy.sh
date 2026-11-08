@@ -53,9 +53,7 @@ esac
 [ "$listen" != "0.0.0.0" ] || { echo "Wildcard listener refused" >&2; exit 2; }
 
 marker="$state_dir/deployed.sha"
-current=$(cat "$marker" 2>/dev/null || true)
 release_key="$local_sha $listen"
-runtime_dir="/run/user/$(id -u)"
 started=$(date +%s)
 ansible-playbook "$ROOT/ansible/deploy.yml" -i 'gway_tv,' -c local \
     -e "gway_webos_bridge_listen=$listen"
