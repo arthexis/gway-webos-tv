@@ -52,9 +52,11 @@ def parser():
     apps = commands.add_parser("apps", help="List or manage TV applications")
     apps_actions = apps.add_subparsers(dest="apps_command")
     apps_actions.add_parser("list", help="List installed app IDs, names and versions")
-    launch = commands.add_parser("launch", help="Launch an app and verify it is in the foreground")
-    launch.add_argument("app_id")
-    launch.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
+    app_launch = apps_actions.add_parser("launch", help="Launch an app and verify foreground")
+    legacy_launch = commands.add_parser("launch", help="Legacy alias for apps launch")
+    for launch in (app_launch, legacy_launch):
+        launch.add_argument("app_id")
+        launch.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
     youtube = commands.add_parser(
         "youtube", aliases=["yt"], help="Open YouTube and select the first saved profile"
     )
@@ -120,7 +122,7 @@ async def run(args):
             return {"apps": await tv.apps()}
         if args.command == "hdmi":
             return await tv.hdmi(args.number, args.wait)
-        if args.command == "launch":
+        if args.command == "launch" or (args.command == "apps" and args.apps_command == "launch"):
             return await tv.launch(args.app_id, args.wait)
         if args.command == "youtube":
             return await YouTube(tv, wait=args.wait).run(query)
