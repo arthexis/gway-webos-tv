@@ -141,6 +141,15 @@ stdio provider is not an OAuth endpoint; direct access to its process must be
 restricted by the node deployment. No deployment or registration is performed
 by A6 itself.
 
+
+The existing node federation expects a root-owned manifest at
+`/etc/gway-mcp-providers/webos.json` with `source_id`, `revision`,
+`executable`, and `argv`. After an independently verified immutable release
+has installed `bin/webos-mcp`, generate the data-only manifest with
+`python -m gway_webos_tv.mcp_manifest --release /path/to/releases/<SHA>`.
+Ansible must atomically publish it as root-owned during a **separately
+approved deployment**. A6 deliberately does not write that file or deploy.
+
 **Scope contract:** The live Watchtower federation advertises `gway:read`
 for read-classified tools and `gway:execute` for execute-classified tools.
 The provider follows those effective scopes rather than introducing a new
