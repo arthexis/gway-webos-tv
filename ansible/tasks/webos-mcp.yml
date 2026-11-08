@@ -103,6 +103,12 @@
           - webos_mcp_deps.results[1].stat.mode is match('^0?[0-7]*[0145][0145]
           - not (webos_mcp_deps.results[1].stat.islnk | default(false))
 
+    - name: Require system Python packaging verifier before staging
+      become: true
+      ansible.builtin.command:
+        argv: [/usr/bin/python3, -c, "import packaging.tags, packaging.utils"]
+      changed_when: false
+
     - name: Stage and atomically promote pinned offline release
       become: true
       ansible.builtin.command:
