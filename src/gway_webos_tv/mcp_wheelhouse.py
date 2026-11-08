@@ -9,7 +9,7 @@ import hashlib
 from pathlib import Path
 import re
 
-ENTRY = re.compile(r"^([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+!-]+)\\s+--hash=sha256:([0-9a-f]{64})$")
+ENTRY = re.compile(r"^([A-Za-z0-9_.-]+)==([A-Za-z0-9_.+!-]+)\s+--hash=sha256:([0-9a-f]{64})$")
 
 
 def verify(lockfile, wheelhouse):
