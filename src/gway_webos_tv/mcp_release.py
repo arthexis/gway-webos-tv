@@ -20,6 +20,8 @@ def run(argv):
 
 
 def stage(source, root, revision, requirements, wheelhouse, *, runner=run):
+    if any(Path(value).is_symlink() for value in (source, root, requirements, wheelhouse)):
+        raise ValueError("symlinked staging input")
     source, root = Path(source).resolve(strict=True), Path(root).resolve(strict=True)
     requirements, wheelhouse = Path(requirements).resolve(strict=True), Path(wheelhouse).resolve(strict=True)
     if not SHA.fullmatch(revision) or not (source / "pyproject.toml").is_file():
