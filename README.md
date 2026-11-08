@@ -165,10 +165,8 @@ only when `gway_webos_mcp_enable=true` is explicitly supplied. The default
 is **false**. The task requires a full reviewed SHA matching the checked-out
 revision, an existing safe root-owned `/etc/gway-mcp-providers` directory,
 and a root-owned release at `/opt/gway-webos-tv/releases/<SHA>`.
-It creates the isolated release once, validates `webos-mcp` through the
-manifest generator, and uses Ansible's atomic copy to publish root-owned
-`webos.json`. The previous manifest is preserved and restored on task
-failure. An already verified release is reused without reinstalling it.
+It requires a separately provisioned root-owned `/etc/gway-webos-tv/mcp-requirements.lock`\nand offline `/opt/gway-webos-tv/wheelhouse` with SHA-256 hashes. Without\nthese inputs it fails closed; A7 does not ship a dependency lock or enable\nproduction installation. It stages an isolated release and promotes it\natomically only after validation, then validates `webos-mcp` through the\nmanifest generator and uses Ansible's atomic copy to publish root-owned
+`webos.json`. The previous manifest is preserved and restored on task\nfailure; a newly promoted release is removed if subsequent publication fails. An already verified release is reused without reinstalling it.
 The provider is not activated or registered merely by merging A7.
 
 **Important:** Do not enable this task in production until the existing
