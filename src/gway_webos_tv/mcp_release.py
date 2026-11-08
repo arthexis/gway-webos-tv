@@ -4,6 +4,7 @@ Offline-testable transaction. Requires a pre-provisioned, hash-locked wheelhouse
 no dependency resolution from the network is allowed.
 """
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -31,6 +32,12 @@ def stage(source, root, revision, requirements, wheelhouse, *, runner=run):
     lock = requirements.read_text()
     if not lock.strip() or "--hash=sha256:" not in lock or "--require-hashes" not in lock:
         raise ValueError("hash-locked requirements required")
+    for line in lock.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line == "--require-hashes":
+            continue
+        if "==" not in line or "--hash=sha256:" not in line or any(x in line for x in ("git+", "http:", "https:", "-e ")):
+            raise ValueError("unpinned or remote dependency")
     releases = root / "releases"
     if releases.is_symlink() or not releases.is_dir():
         raise ValueError("unsafe releases directory")
@@ -49,7 +56,9 @@ def stage(source, root, revision, requirements, wheelhouse, *, runner=run):
         python = staging / "bin/python"
         runner([str(python), "-m", "pip", "install", "--no-index", "--find-links", str(wheelhouse),
                 "--require-hashes", "-r", str(requirements)])
-        runner([str(python), "-m", "pip", "install", "--no-index", "--no-deps", "--no-build-isolation", str(source)])
+        # Require the reviewed application wheel itself in the offline lock.
+        # Installing source here would invoke an unpinned build backend.
+        runner([str(python), "-m", "pip", "check"])
         launcher = staging / "bin/webos-mcp"
         launcher.write_text("#!/bin/sh\nexec \"$(dirname \"$0\")/python\" -m gway_webos_tv.mcp_stdio \"$@\"\n")
         launcher.chmod(0o755)
