@@ -16,6 +16,7 @@ dev = ["pytest>=8,<10", "build>=1,<2"]
 
 [project.scripts]
 gway-tv = "gway_webos_tv.cli:main"
+webos-mcp = "gway_webos_tv.mcp_stdio:main"
 tv = "gway_webos_tv.cli:main"
 
 [tool.setuptools.packages.find]

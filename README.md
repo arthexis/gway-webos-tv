@@ -119,6 +119,45 @@ output. Plain `tv pair` continues to perform normal TV pairing.
 `tv yts QUERY` remain supported. The search aliases share the same
 validation and execution handler, including `--json` results.
 
+## Federated MCP provider (A6)
+
+The node-local `webos-mcp` stdio executable implements the existing MCP
+JSON-RPC provider contract (`initialize`, `tools/list`, `tools/call`).
+It advertises exactly two local names: `read` and `execute`. The existing
+GWay federation prefixes these as `webos__read` and `webos__execute` when
+the `webos` source is registered on the node. It does **not** create another
+Watchtower gateway or transport.
+
+- `read`: `status`, `inputs.list`, `apps.list`.
+- `execute`: `inputs.select`, `apps.launch`, `screen.capture`,
+  `youtube.open`, `youtube.search`.
+- `pair` and `pair.code` are intentionally not exposed, and arbitrary
+  shell commands are rejected.
+
+**Security boundary:** Run `webos-mcp` only as a trusted node-local provider
+behind the existing authenticated GWay federation. Watchtower enforces OAuth
+scope from the read-only/execute classification before forwarding. The local
+stdio provider is not an OAuth endpoint; direct access to its process must be
+restricted by the node deployment. No deployment or registration is performed
+by A6 itself.
+
+
+The existing node federation expects a root-owned manifest at
+`/etc/gway-mcp-providers/webos.json` with `source_id`, `revision`,
+`executable`, and `argv`. After an independently verified immutable release
+has installed `bin/webos-mcp`, generate the data-only manifest with
+`python -m gway_webos_tv.mcp_manifest --release /path/to/releases/<SHA>`.
+Ansible must atomically publish it as root-owned during a **separately
+approved deployment**. A6 deliberately does not write that file or deploy.
+
+**Scope contract:** The live Watchtower federation advertises `gway:read`
+for read-classified tools and `gway:execute` for execute-classified tools.
+The provider follows those effective scopes rather than introducing a new
+`gway:remote` scope. Watchtower must still enforce these scopes before
+forwarding. The provider is not registered or exposed in production by A6.
+Remote capture paths are not accepted; only the existing default local
+screenshot destination is used.
+
 ## Pairing state and compatibility
 
 The default state file is `$XDG_STATE_HOME/gway-webos-tv/device.json`, falling
