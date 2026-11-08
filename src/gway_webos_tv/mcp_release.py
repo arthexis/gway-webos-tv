@@ -41,6 +41,9 @@ def stage(source, root, revision, requirements, wheelhouse, *, runner=run):
             raise ValueError("unpinned or remote dependency")
     from .mcp_wheelhouse import verify
     verify(requirements, wheelhouse)
+    for dependency in wheelhouse.iterdir():
+        if dependency.is_symlink() or not dependency.is_file() or dependency.suffix != ".whl":
+            raise ValueError("unsafe extra wheelhouse entry")
     releases = root / "releases"
     if releases.is_symlink() or not releases.is_dir():
         raise ValueError("unsafe releases directory")
