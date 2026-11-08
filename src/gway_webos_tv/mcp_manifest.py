@@ -15,7 +15,7 @@ def manifest(release):
     if not re.fullmatch(r"[0-9a-f]{40}", release.name):
         raise ValueError("release must be a pinned SHA directory")
     executable = release / "bin" / "webos-mcp"
-    if not executable.is_file() or not executable.stat().st_mode & 0o111:
+    if executable.is_symlink() or not executable.is_file() or not executable.stat().st_mode & 0o111:
         raise ValueError("installed MCP executable missing")
     return {"source_id": "webos", "revision": release.name,
             "executable": str(executable), "argv": [str(executable)]}
