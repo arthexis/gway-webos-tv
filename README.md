@@ -158,6 +158,33 @@ forwarding. The provider is not registered or exposed in production by A6.
 Remote capture paths are not accepted; only the existing default local
 screenshot destination is used.
 
+## A7: opt-in node-owned Ansible registration (not deployed)
+
+The existing `ansible/deploy.yml` includes `ansible/tasks/webos-mcp.yml`
+only when `gway_webos_mcp_enable=true` is explicitly supplied. The default
+is **false**. The task requires a full reviewed SHA matching the checked-out
+revision, an existing safe root-owned `/etc/gway-mcp-providers` directory,
+and a root-owned release at `/opt/gway-webos-tv/releases/<SHA>`.
+It requires a separately provisioned root-owned `/etc/gway-webos-tv/mcp-requirements.lock`
+and offline `/opt/gway-webos-tv/wheelhouse` with SHA-256 hashes. Without
+these inputs it fails closed. The operator can build and review an offline
+wheelhouse separately, then generate a SHA-256 lock using
+`python scripts/build_mcp_lock.py --wheelhouse WHEELS --output mcp-requirements.lock`
+(requires the `packaging` Python library). This verifies direct and transitive
+dependency closure for the invoking Python environment; review wheel tags and
+Python versions for the target node before provisioning. No wheelhouse bytes
+or production credentials are committed. A7 does not ship a dependency lock or enable
+production installation. It stages an isolated release and promotes it
+atomically only after validation, then validates `webos-mcp` through the
+manifest generator and uses Ansible's atomic copy to publish root-owned
+`webos.json`. A failed convergence leaves the previously published manifest unchanged;\nrecovery is a new declarative convergence to the desired revision. An already verified release is reused without reinstalling it.
+The provider is not activated or registered merely by merging A7.
+
+**Important:** Do not enable this task in production until the existing
+managed deploy workflow explicitly authorizes it. The current `deploy.sh`
+passes no MCP opt-in and is unchanged. The existing TV event bridge remains
+independent. Tests run offline and never contact the TV.
+
 ## Pairing state and compatibility
 
 The default state file is `$XDG_STATE_HOME/gway-webos-tv/device.json`, falling
