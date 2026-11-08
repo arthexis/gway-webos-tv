@@ -10,7 +10,6 @@
     gway_webos_bridge_port: 8769
     gway_webos_bridge_listen: ""
     gway_webos_install_ocr: true
-    gway_webos_mcp_revision: "{{ gway_webos_checkout.after }}"
   tasks:
     - name: Require a configured WireGuard listener address
       ansible.builtin.assert:
