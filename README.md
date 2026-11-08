@@ -158,6 +158,24 @@ forwarding. The provider is not registered or exposed in production by A6.
 Remote capture paths are not accepted; only the existing default local
 screenshot destination is used.
 
+## A7: opt-in node-owned Ansible registration (not deployed)
+
+The existing `ansible/deploy.yml` includes `ansible/tasks/webos-mcp.yml`
+only when `gway_webos_mcp_enable=true` is explicitly supplied. The default
+is **false**. The task requires a full reviewed SHA matching the checked-out
+revision, an existing safe root-owned `/etc/gway-mcp-providers` directory,
+and a root-owned release at `/opt/gway-webos-tv/releases/<SHA>`.
+It creates the isolated release once, validates `webos-mcp` through the
+manifest generator, and uses Ansible's atomic copy to publish root-owned
+`webos.json`. The previous manifest is preserved and restored on task
+failure. An already verified release is reused without reinstalling it.
+The provider is not activated or registered merely by merging A7.
+
+**Important:** Do not enable this task in production until the existing
+managed deploy workflow explicitly authorizes it. The current `deploy.sh`
+passes no MCP opt-in and is unchanged. The existing TV event bridge remains
+independent. Tests run offline and never contact the TV.
+
 ## Pairing state and compatibility
 
 The default state file is `$XDG_STATE_HOME/gway-webos-tv/device.json`, falling
