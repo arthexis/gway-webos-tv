@@ -1,11 +1,24 @@
 ---
 # Opt-in node-owned MCP convergence. Included only by the existing webOS deploy playbook.
 # No Watchtower credentials, new transport or TV operation is involved.
+- name: Resolve actual checked-out revision even on idempotent runs
+  ansible.builtin.command:
+    argv: [git, -C, "{{ gway_webos_repo }}", rev-parse, --verify, HEAD]
+  register: webos_mcp_checkout_sha
+  changed_when: false
+
+- name: Require clean reviewed source checkout
+  ansible.builtin.command:
+    argv: [git, -C, "{{ gway_webos_repo }}", status, --porcelain]
+  register: webos_mcp_dirty
+  changed_when: false
+
 - name: Require explicit pinned webOS MCP revision
   ansible.builtin.assert:
     that:
       - gway_webos_mcp_revision is match('^[0-9a-f]{40}$')
-      - gway_webos_checkout.after == gway_webos_mcp_revision
+      - webos_mcp_checkout_sha.stdout == gway_webos_mcp_revision
+      - webos_mcp_dirty.stdout == ''
     fail_msg: "Refusing MCP registration without a verified pinned checkout revision"
 
 - name: Require existing root-owned provider registry directory
