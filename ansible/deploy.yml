@@ -10,8 +10,6 @@
     gway_webos_bridge_port: 8769
     gway_webos_bridge_listen: ""
     gway_webos_install_ocr: true
-    gway_webos_mcp_enable: false
-    gway_webos_mcp_revision: ''
   tasks:
     - name: Require a configured WireGuard listener address
       ansible.builtin.assert:
@@ -155,6 +153,5 @@
         that:
           - (gway_webos_network.stdout | from_json).schema == 'gway-remote/network/v1'
 
-    - name: Converge node-owned WebOS MCP provider only when explicitly enabled
+    - name: Converge node-owned WebOS MCP provider with installation
       ansible.builtin.include_tasks: tasks/webos-mcp.yml
-      when: gway_webos_mcp_enable | bool
