@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 from zipfile import ZipFile
 
+from packaging.tags import sys_tags
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name, parse_wheel_filename
 
@@ -19,10 +20,13 @@ def build_lock(wheelhouse):
     if wheelhouse.is_symlink() or not wheelhouse.is_dir():
         raise ValueError("unsafe wheelhouse")
     wheels = {}
+    compatible_tags = set(sys_tags())
     for wheel in sorted(wheelhouse.iterdir()):
         if wheel.is_symlink() or not wheel.is_file() or wheel.suffix != ".whl":
             raise ValueError("wheelhouse must contain only regular wheels")
-        name, version, _, _ = parse_wheel_filename(wheel.name)
+        name, version, _, wheel_tags = parse_wheel_filename(wheel.name)
+        if not wheel_tags & compatible_tags:
+            raise ValueError("incompatible wheel for current Python/platform: " + wheel.name)
         key = canonicalize_name(name)
         if key in wheels:
             raise ValueError("multiple wheels for package " + key)
