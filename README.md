@@ -108,6 +108,17 @@ Existing `tv apps`, `tv launch`, `tv inputs`, `tv hdmi`, `tv screenshot`,
 and `tv sc` remain supported with the same arguments, behavior, and JSON
 result shapes. `tv` and `gway-tv` still share the same entrypoint.
 
+## Pairing code and YouTube aliases (A4)
+
+`tv pair code` is the canonical form of `tv pair --code`. Both open the
+same local interactive pairing window. For security, both reject `--json`
+and non-interactive output; the code is never returned as machine-readable
+output. Plain `tv pair` continues to perform normal TV pairing.
+
+`tv youtube`, `tv yt`, `tv youtube search QUERY`, `tv yt s QUERY`, and
+`tv yts QUERY` remain supported. The search aliases share the same
+validation and execution handler, including `--json` results.
+
 ## Pairing state and compatibility
 
 The default state file is `$XDG_STATE_HOME/gway-webos-tv/device.json`, falling
