@@ -49,7 +49,9 @@ def parser():
     capture.add_argument(
         "output", type=Path, nargs="?", help="New JPEG/PNG file (default: ~/screenshots)"
     )
-    commands.add_parser("apps", help="List installed app IDs, names and versions")
+    apps = commands.add_parser("apps", help="List or manage TV applications")
+    apps_actions = apps.add_subparsers(dest="apps_command")
+    apps_actions.add_parser("list", help="List installed app IDs, names and versions")
     launch = commands.add_parser("launch", help="Launch an app and verify it is in the foreground")
     launch.add_argument("app_id")
     launch.add_argument("--wait", type=seconds, default=30, help="Foreground confirmation timeout")
