@@ -32,6 +32,8 @@ def stage(source, root, revision, requirements, wheelhouse, *, runner=run):
     lock = requirements.read_text()
     if not lock.strip() or "--hash=sha256:" not in lock or "--require-hashes" not in lock:
         raise ValueError("hash-locked requirements required")
+    if not any(line.strip().lower().startswith("gway-webos-tv==") for line in lock.splitlines()):
+        raise ValueError("application wheel must be included in hash lock")
     for line in lock.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or line == "--require-hashes":
