@@ -12,7 +12,7 @@ from gway_webos_tv.dispatcher import Operation
 
 def test_catalog_exactly_two_tools_and_scopes():
     assert [tool["name"] for tool in mcp.TOOLS] == ["read", "execute"]
-    assert [tool["required_scope"] for tool in mcp.TOOLS] == ["gway:remote", "gway:execute"]
+    assert [tool["required_scope"] for tool in mcp.TOOLS] == ["gway:read", "gway:execute"]
     response = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     tools = response["result"]["tools"]
     assert [tool["name"] for tool in tools] == ["read", "execute"]
@@ -32,7 +32,7 @@ def test_catalog_exactly_two_tools_and_scopes():
     ("execute", {"operation": "apps.launch", "app_id": ""}),
     ("execute", {"operation": "youtube.search", "query": ""}),
     ("execute", {"operation": "youtube.open", "wait": 0}),
-    ("execute", {"operation": "screen.capture", "output": "\n"}),
+    ("execute", {"operation": "screen.capture", "output": "unsafe.jpg"}),
 ])
 def test_negative_authorization_and_schema(tool, args):
     with pytest.raises(ValueError):
