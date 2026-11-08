@@ -9,11 +9,11 @@ from gway_webos_tv.mcp_manifest import manifest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_opt_in_in_existing_playbook():
+def test_provider_is_part_of_normal_installation():
     playbook = (ROOT / "ansible/deploy.yml").read_text()
-    assert "gway_webos_mcp_enable: false" in playbook
+    assert "gway_webos_mcp_enable" not in playbook
     assert "include_tasks: tasks/webos-mcp.yml" in playbook
-    assert "when: gway_webos_mcp_enable | bool" in playbook
+    assert "when: gway_webos_mcp_enable | bool" not in playbook
 
 
 def test_pinned_release_atomic_manifest_without_manual_rollback():
