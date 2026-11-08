@@ -1,5 +1,6 @@
 """Offline transaction tests; never execute pip, Ansible, MCP or a TV."""
 from pathlib import Path
+import hashlib
 
 import pytest
 
