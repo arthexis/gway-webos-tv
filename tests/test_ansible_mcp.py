@@ -16,7 +16,7 @@ def test_opt_in_in_existing_playbook():
     assert "when: gway_webos_mcp_enable | bool" in playbook
 
 
-def test_pinned_release_atomic_manifest_and_rollback_contract():
+def test_pinned_release_atomic_manifest_without_manual_rollback():
     tasks = (ROOT / "ansible/tasks/webos-mcp.yml").read_text()
     for contract in (
         "webos_mcp_checkout_sha.stdout == gway_webos_mcp_revision",
@@ -24,10 +24,11 @@ def test_pinned_release_atomic_manifest_and_rollback_contract():
         "^[0-9a-f]{40}$", "/opt/gway-webos-tv/releases/",
         "gway_webos_tv.mcp_manifest", "/etc/gway-mcp-providers/webos.json",
         "owner: root", "group: root", "mode: '0644'", "ansible.builtin.copy:",
-        "rescue:", "webos_mcp_previous.content | b64decode",
         "webos_mcp_old_stat.stat.exists", "changed_when: false",
     ):
         assert contract in tasks
+    assert "rescue:" not in tasks
+    assert "b64decode" not in tasks
     assert "shell:" not in tasks
     assert "state: restarted" not in tasks
 
