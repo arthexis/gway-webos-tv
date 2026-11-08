@@ -25,7 +25,7 @@ def test_manifest_rejects_unpinned_and_nonexecutable(tmp_path):
     executable.parent.mkdir(parents=True)
     executable.write_text("not executable")
     with pytest.raises(ValueError):
-        manifest(release)
+        manifest('invalid', executable)
     pinned = tmp_path / ("b" * 40)
     target = pinned / "bin" / "webos-mcp"
     target.parent.mkdir(parents=True)
