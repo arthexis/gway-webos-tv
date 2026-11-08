@@ -53,9 +53,11 @@ def test_atomic_promotion_and_second_convergence(tmp_path):
 
 def test_rejects_unlocked_dependencies_and_symlinked_release(tmp_path):
     source, root, sha, lock, wheels = fixture(tmp_path)
+    original_lock = lock.read_text()
     lock.write_text("example>=1\n")
     with pytest.raises(ValueError, match="hash-locked"):
         stage(source, root, sha, lock, wheels, runner=fake_runner([]))
+    lock.write_text(original_lock)
     (root / "releases" / sha).symlink_to(wheels, target_is_directory=True)
     with pytest.raises(ValueError, match="symlinked"):
         stage(source, root, sha, lock, wheels, runner=fake_runner([]))
