@@ -56,7 +56,6 @@ def test_rejects_unlocked_dependencies_and_symlinked_release(tmp_path):
     lock.write_text("example>=1\n")
     with pytest.raises(ValueError, match="hash-locked"):
         stage(source, root, sha, lock, wheels, runner=fake_runner([]))
-    lock.write_text("--require-hashes\ngway-webos-tv==0.2.0 --hash=sha256:" + "a" * 64)
     (root / "releases" / sha).symlink_to(wheels, target_is_directory=True)
     with pytest.raises(ValueError, match="symlinked"):
         stage(source, root, sha, lock, wheels, runner=fake_runner([]))
@@ -71,6 +70,6 @@ def test_rejects_lock_without_application_wheel(tmp_path):
 
 def test_rejects_remote_dependency_directive(tmp_path):
     source, root, sha, lock, wheels = fixture(tmp_path)
-    lock.write_text("--require-hashes\\ngway-webos-tv==0.2.0 --hash=sha256:" + "a" * 64 + "\\nhttps://evil.invalid/pkg==1 --hash=sha256:" + "b" * 64)
+    lock.write_text(lock.read_text() + "https://evil.invalid/pkg==1 --hash=sha256:" + "b" * 64 + "\n")
     with pytest.raises(ValueError, match="unpinned or remote"):
         stage(source, root, sha, lock, wheels, runner=fake_runner([]))
