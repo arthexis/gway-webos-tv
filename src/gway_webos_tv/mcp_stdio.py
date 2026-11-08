@@ -21,7 +21,7 @@ TOOLS = (
     {"name": "read", "description": "Read webOS TV status, inputs or installed applications.",
      "inputSchema": {"type": "object", "properties": {"operation": {"type": "string", "enum": sorted(READ)}},
                      "required": ["operation"], "additionalProperties": False},
-     "annotations": {"readOnlyHint": True}, "required_scope": "gway:remote"},
+     "annotations": {"readOnlyHint": True}, "required_scope": "gway:read"},
     {"name": "execute", "description": "Execute a validated webOS TV action; requires gway:execute.",
      "inputSchema": {"type": "object", "properties": {
          "operation": {"type": "string", "enum": sorted(EXECUTE)},
@@ -29,7 +29,7 @@ TOOLS = (
          "app_id": {"type": "string", "minLength": 1, "maxLength": 256},
          "wait": {"type": "number", "exclusiveMinimum": 0, "maximum": 120},
          "query": {"type": "string", "minLength": 1, "maxLength": 120},
-         "output": {"type": "string", "minLength": 1, "maxLength": 512}},
+         },
          "required": ["operation"], "additionalProperties": False},
      "annotations": {"readOnlyHint": False}, "required_scope": "gway:execute"},
 )
@@ -45,7 +45,7 @@ def validate(name, arguments):
     expected = {
         "status": set(), "inputs.list": set(), "apps.list": set(),
         "inputs.select": {"number", "wait"}, "apps.launch": {"app_id", "wait"},
-        "screen.capture": {"output"}, "youtube.open": {"wait"},
+        "screen.capture": set(), "youtube.open": {"wait"},
         "youtube.search": {"query", "wait"},
     }[operation]
     supplied = set(arguments) - {"operation"}
@@ -68,11 +68,6 @@ def validate(name, arguments):
         query = params.get("query")
         if type(query) is not str or not 1 <= len(query) <= 120:
             raise ValueError("invalid_arguments")
-    if "output" in params:
-        output = params["output"]
-        if type(output) is not str or not 1 <= len(output) <= 512 or any(ord(ch) < 32 for ch in output):
-            raise ValueError("invalid_arguments")
-        params["output"] = Path(output)
     return Operation(operation, params)
 
 
