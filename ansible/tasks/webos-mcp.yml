@@ -1,154 +1,84 @@
 ---
-# Opt-in node-owned MCP convergence. Included only by the existing webOS deploy playbook.
-# No Watchtower credentials, new transport or TV operation is involved.
-- name: Resolve actual checked-out revision even on idempotent runs
+# Provider registration is part of normal installation, without a separate opt-in.
+# Reuse the already installed application venv and authenticated federation.
+- name: Resolve installed revision
   ansible.builtin.command:
     argv: [git, -C, "{{ gway_webos_repo }}", rev-parse, --verify, HEAD]
   register: webos_mcp_checkout_sha
   changed_when: false
 
-- name: Require clean reviewed source checkout
+- name: Verify installed MCP module using existing application environment
   ansible.builtin.command:
-    argv: [git, -C, "{{ gway_webos_repo }}", status, --porcelain]
-  register: webos_mcp_dirty
+    argv:
+      - "{{ gway_webos_repo }}/.venv/bin/python"
+      - -c
+      - "import gway_webos_tv.mcp_stdio"
   changed_when: false
 
-- name: Require explicit pinned webOS MCP revision
-  ansible.builtin.assert:
-    that:
-      - gway_webos_mcp_revision is match('^[0-9a-f]{40}$')
-      - webos_mcp_checkout_sha.stdout == gway_webos_mcp_revision
-      - webos_mcp_dirty.stdout == ''
-    fail_msg: "Refusing MCP registration without a verified pinned checkout revision"
-
-- name: Require existing root-owned provider registry directory
+- name: Inspect existing provider registry
   become: true
   ansible.builtin.stat:
     path: /etc/gway-mcp-providers
     follow: false
   register: webos_mcp_registry
 
-- name: Reject unprovisioned or unsafe provider registry
+- name: Require safe root-owned registry
   ansible.builtin.assert:
     that:
       - webos_mcp_registry.stat.isdir | default(false)
       - not (webos_mcp_registry.stat.islnk | default(false))
       - webos_mcp_registry.stat.pw_name == 'root'
-      - webos_mcp_registry.stat.mode is match('^0?[0-7]*[0-5][0-7]
+      - webos_mcp_registry.stat.mode is match('^[0-7]*[0145][0145]$')
 
-- name: Inspect existing WebOS manifest
+- name: Inspect existing provider manifest
   become: true
   ansible.builtin.stat:
     path: /etc/gway-mcp-providers/webos.json
     follow: false
-  register: webos_mcp_old_stat
+  register: webos_mcp_old_manifest
 
-- name: Refuse symlinked or unowned manifest
+- name: Refuse unsafe existing manifest
   ansible.builtin.assert:
     that:
-      - not (webos_mcp_old_stat.stat.islnk | default(false))
-      - not (webos_mcp_old_stat.stat.exists | default(false)) or (webos_mcp_old_stat.stat.isreg | default(false) and webos_mcp_old_stat.stat.pw_name == 'root' and webos_mcp_old_stat.stat.mode is match('^0?[0-7]*[0145][0145]
+      - not (webos_mcp_old_manifest.stat.islnk | default(false))
+      - not (webos_mcp_old_manifest.stat.exists | default(false)) or (webos_mcp_old_manifest.stat.isreg | default(false) and webos_mcp_old_manifest.stat.pw_name == 'root')
 
-- name: Inspect pinned immutable release
+- name: Install root-owned MCP launcher using existing application venv
   become: true
-  ansible.builtin.stat:
-    path: "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
-    follow: false
-  register: webos_mcp_release
+  ansible.builtin.copy:
+    dest: /usr/local/bin/gway-webos-mcp
+    owner: root
+    group: root
+    mode: '0755'
+    content: |
+      #!/bin/sh
+      exec "{{ gway_webos_repo }}/.venv/bin/python" -m gway_webos_tv.mcp_stdio "$@"
 
-- name: Refuse unsafe existing release
+- name: Verify launcher and render node-owned manifest
+  ansible.builtin.command:
+    argv:
+      - "{{ gway_webos_repo }}/.venv/bin/python"
+      - -m
+      - gway_webos_tv.mcp_manifest
+      - --revision
+      - "{{ webos_mcp_checkout_sha.stdout }}"
+      - --executable
+      - /usr/local/bin/gway-webos-mcp
+  register: webos_mcp_manifest
+  changed_when: false
+
+- name: Assert manifest identity
   ansible.builtin.assert:
     that:
-      - not (webos_mcp_release.stat.islnk | default(false))
-      - not (webos_mcp_release.stat.exists | default(false)) or (webos_mcp_release.stat.isdir | default(false) and webos_mcp_release.stat.pw_name == 'root' and webos_mcp_release.stat.mode is match('^0?[0-7]*[0-5][0-7])
+      - (webos_mcp_manifest.stdout | from_json).source_id == 'webos'
+      - (webos_mcp_manifest.stdout | from_json).revision == webos_mcp_checkout_sha.stdout
+      - (webos_mcp_manifest.stdout | from_json).argv == ['/usr/local/bin/gway-webos-mcp']
 
-- name: Stage and register pinned WebOS MCP release
-  block:
-    - name: Create managed releases directory
-      become: true
-      ansible.builtin.file:
-        path: /opt/gway-webos-tv/releases
-        state: directory
-        owner: root
-        group: root
-        mode: '0755'
-
-    - name: Require pre-provisioned offline dependency lock and wheelhouse
-      become: true
-      ansible.builtin.stat:
-        path: "{{ item }}"
-        follow: false
-      loop:
-        - /etc/gway-webos-tv/mcp-requirements.lock
-        - /opt/gway-webos-tv/wheelhouse
-      register: webos_mcp_deps
-
-    - name: Refuse unprovisioned dependency inputs
-      ansible.builtin.assert:
-        that:
-          - webos_mcp_deps.results[0].stat.isreg | default(false)
-          - webos_mcp_deps.results[0].stat.pw_name == 'root'
-          - webos_mcp_deps.results[0].stat.mode is match('^0?[0-7]*[0145][0145]
-          - not (webos_mcp_deps.results[0].stat.islnk | default(false))
-          - webos_mcp_deps.results[1].stat.isdir | default(false)
-          - webos_mcp_deps.results[1].stat.pw_name == 'root'
-          - webos_mcp_deps.results[1].stat.mode is match('^0?[0-7]*[0145][0145]
-          - not (webos_mcp_deps.results[1].stat.islnk | default(false))
-
-    - name: Require system Python packaging verifier before staging
-      become: true
-      ansible.builtin.command:
-        argv: [/usr/bin/python3, -c, "import packaging.tags, packaging.utils"]
-      changed_when: false
-
-    - name: Stage and atomically promote pinned offline release
-      become: true
-      ansible.builtin.command:
-        argv:
-          - /usr/bin/python3
-          - -m
-          - gway_webos_tv.mcp_release
-          - --source
-          - "{{ gway_webos_repo }}"
-          - --root
-          - /opt/gway-webos-tv
-          - --revision
-          - "{{ gway_webos_mcp_revision }}"
-          - --requirements
-          - /etc/gway-webos-tv/mcp-requirements.lock
-          - --wheelhouse
-          - /opt/gway-webos-tv/wheelhouse
-      environment:
-        PYTHONPATH: "{{ gway_webos_repo }}/src"
-      register: webos_mcp_stage
-      changed_when: not (webos_mcp_release.stat.exists | default(false))
-
-    - name: Verify pinned provider executable and manifest contract
-      become: true
-      ansible.builtin.command:
-        argv:
-          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}/bin/python"
-          - -m
-          - gway_webos_tv.mcp_manifest
-          - --release
-          - "/opt/gway-webos-tv/releases/{{ gway_webos_mcp_revision }}"
-      register: webos_mcp_manifest
-      changed_when: false
-
-    - name: Assert exact node-owned manifest identity
-      ansible.builtin.assert:
-        that:
-          - (webos_mcp_manifest.stdout | from_json).source_id == 'webos'
-          - (webos_mcp_manifest.stdout | from_json).revision == gway_webos_mcp_revision
-          - (webos_mcp_manifest.stdout | from_json).argv | length == 1
-          - (webos_mcp_manifest.stdout | from_json).argv[0] == (webos_mcp_manifest.stdout | from_json).executable
-
-    - name: Publish verified manifest atomically using Ansible copy
-      become: true
-      ansible.builtin.copy:
-        content: "{{ webos_mcp_manifest.stdout | from_json | to_nice_json }}\n"
-        dest: /etc/gway-mcp-providers/webos.json
-        owner: root
-        group: root
-        mode: '0644'
-      # copy uses a temporary file and atomic rename by default.
+- name: Atomically publish provider manifest
+  become: true
+  ansible.builtin.copy:
+    content: "{{ webos_mcp_manifest.stdout | from_json | to_nice_json }}\n"
+    dest: /etc/gway-mcp-providers/webos.json
+    owner: root
+    group: root
+    mode: '0644'
