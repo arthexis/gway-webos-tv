@@ -218,3 +218,14 @@ def test_concurrent_operators_are_serialized(tmp_path):
                 results = await asyncio.gather(*outcomes)
                 assert all(json.loads(result)["type"] == "monitor.diagnostic.result" for result in results)
     asyncio.run(check())
+
+
+def test_legacy_credential_cannot_gain_new_diagnostic_capabilities(tmp_path):
+    legacy = hashlib.sha256(b"legacy").hexdigest()
+    write_private(tmp_path / "credential.json", {
+        "sha256": legacy, "additional_sha256": [], "scoped": {}
+    })
+    bridge = Bridge(tmp_path)
+    assert bridge.authorized(legacy, "button.pressed")
+    assert not bridge.authorized(legacy, "monitor.diagnostic.read")
+    assert not bridge.authorized(legacy, "monitor.diagnostic.respond")
