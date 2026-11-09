@@ -34,3 +34,10 @@ No merge or deploy is authorized by this draft.
 - GitHub Actions workflow 42559467991 was still running at last check. Full local suite exceeded the 60-second remote execution limit; **do not claim it passed**.
 - Security fixes: permit explicit diagnostic-only operator login, enforce server-side nonce deadline, reject second TV registration, fail pending request when TV disconnects, asynchronously load build identity, reject dirty source trees for attestation.
 - Remaining acceptance/security gaps: concurrent operator request test, build-sidecar provenance validation, live TV proof, and final CI conclusion. Treat client-reported DOM and SHA as authenticated client assertions, not cryptographic hardware attestation.
+
+## Concurrency and IPK verification checkpoint
+
+- Two simultaneous diagnostic operators are serialized by the existing per-bridge async lock; integration test verifies that the second nonce is not issued until the first response is consumed and that both operators receive distinct results.
+- IPK sidecar now has strict schema and source/build consistency validation; actual IPK SHA-256 is verified before install. Negative test rejects tampered package bytes and inconsistent build ID. Sidecar is atomically replaced after package output.
+- The sidecar proves integrity of the *local artifact against its accompanying metadata*, not that the TV currently runs that artifact. A trusted signed release or readback of installed bytes is still necessary for stronger remote provenance.
+- Persistent full-suite runner started via detached process on gway-001 after `systemd-run --user` failed (no user bus). Its initial checkout precedes the latest provenance test, so a final run must use latest HEAD. Do not count a pending runner or queued CI as passed.
