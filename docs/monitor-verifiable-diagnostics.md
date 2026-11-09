@@ -48,3 +48,10 @@ No merge or deploy is authorized by this draft.
 - **Privilege escalation found and fixed:** legacy unscoped credentials previously implicitly passed `monitor.diagnostic.read` and `monitor.diagnostic.respond` because the legacy allowlist only excluded old capabilities. New diagnostic capabilities are now explicitly excluded from legacy access. Regression test confirms both denied while existing button capability remains unchanged.
 - Isolated diagnostic/packaging suite at HEAD a4016a8: **10 passed in 2.43s**. GitHub Actions workflow 42561108946 was still running when inspected; latest CI is not yet verified green.
 - Trust boundary: build SHA and DOM values are TV-client assertions, even over authenticated WSS; local IPK sidecar SHA-256 verifies artifact integrity, not installed TV bytes. No merge or deployment until review and real TV acceptance.
+
+## Final review of CI 42561144830 (HEAD aec3143)
+
+- GitHub Actions: **SUCCESS**. Python 3.11 and 3.13 each completed tests and distribution build; deployment validation completed syntax, marker regression and Ansible syntax; aggregate CI completed successfully.
+- WSS coverage includes two authenticated clients, unauthorized operator/TV, replay, server nonce deadline, TV disconnect, and concurrent operator serialization; isolated tests were 10 passed on gway-001. No live TV session or independent installed-IPK byte readback was performed.
+- **Merge-readiness: conditional / not field-accepted.** Transport authorization and replay controls are covered, but the responder credential authenticates a client, not the specific installed app. Returned `git_sha`, `build_id`, DOM label and ARIA are client assertions. External IPK SHA-256 is checked against local bytes; no cryptographic link to installed TV bytes. Operator credentials need explicit provisioning. Actual TV-visible AgentOps badge remains unobserved.
+- Keep PR draft, #32 open and do not deploy or merge pending a separately authorized field acceptance and provenance decision.
