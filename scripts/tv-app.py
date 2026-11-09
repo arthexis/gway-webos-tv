@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import hmac
 import importlib.util
 import json
 import os
@@ -132,6 +133,26 @@ def load_manifest(source):
     if meta.get("main") != manifest["entry"]:
         raise ValueError("Manifest entry does not match webOS main")
     return manifest, meta
+
+
+def verify_package_sidecar(package, sidecar):
+    """Verify local artifact bytes and the declared source/build relationship."""
+    record = json.loads(Path(sidecar).read_text())
+    if not isinstance(record, dict) or set(record) != {
+        "schema", "app_id", "version", "git_sha", "build_id", "ipk_sha256"
+    }:
+        raise ValueError("Invalid IPK sidecar schema")
+    sha = record["git_sha"]
+    if (record["schema"] != 1 or not isinstance(sha, str)
+        or not re.fullmatch(r"[0-9a-f]{40}", sha)
+        or record["build_id"] != sha[:16]
+        or not isinstance(record["app_id"], str) or not APP_ID.fullmatch(record["app_id"])
+        or not isinstance(record["version"], str) or not VERSION.fullmatch(record["version"])
+        or Path(package).name != f'{record["app_id"]}_{record["version"]}_all.ipk'
+        or not hmac.compare_digest(hashlib.sha256(Path(package).read_bytes()).hexdigest(),
+                                   str(record["ipk_sha256"]))):
+        raise ValueError("IPK provenance verification failed")
+    return record
 
 
 def source_revision():
@@ -290,6 +311,7 @@ def main():
             finally:
                 if os.path.exists(temporary_metadata):
                     os.unlink(temporary_metadata)
+            verify_package_sidecar(destination, sidecar)
             print(f"Package: {destination}")
             if args.install:
                 command("ares-install", "--device", args.device, destination)
