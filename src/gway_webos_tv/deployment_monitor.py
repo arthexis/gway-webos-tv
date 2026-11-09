@@ -24,6 +24,7 @@ def snapshot():
                             if isinstance(evidence.get(key), str) and evidence[key]), None)
         items.append({'name': name, 'repository': repo if isinstance(repo, str) else None,
                       'revision': evidence.get('activated_revision') or item.get('installed_sha'),
+                      'staged_revision': evidence.get('staged_revision') if name == 'gway-bastion' else None,
                       'installation': evidence.get('installation_state') or item.get('installation') or 'unknown',
                       'health': evidence.get('runtime_state') or item.get('health') or 'unknown',
                       'deployed_at': deployed_at, 'error': item.get('error') or None,
