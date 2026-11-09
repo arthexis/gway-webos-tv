@@ -5,7 +5,22 @@
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0;
   var buildIdentity = null;
-  try { var buildRequest = new XMLHttpRequest(); buildRequest.open('GET', 'gway-build.json', false); buildRequest.send(); if (buildRequest.status === 200 || buildRequest.status === 0) buildIdentity = JSON.parse(buildRequest.responseText); } catch (_) { buildIdentity = null; }
+  try {
+    var identityRequest = new XMLHttpRequest();
+    identityRequest.open('GET', 'gway-build.json', true);
+    identityRequest.onreadystatechange = function () {
+      if (identityRequest.readyState !== 4) return;
+      if (identityRequest.status !== 200 && identityRequest.status !== 0) return;
+      try {
+        var parsed = JSON.parse(identityRequest.responseText);
+        if (parsed && /^[0-9a-f]{40}$/.test(parsed.git_sha) &&
+            typeof parsed.build_id === 'string' && parsed.build_id.length <= 64) {
+          buildIdentity = parsed;
+        }
+      } catch (_) { buildIdentity = null; }
+    };
+    identityRequest.send();
+  } catch (_) { buildIdentity = null; }
   var retryJobs = {}, retryTimer = null;
   function send(message) { if (!ready || !socket || socket.readyState !== WebSocket.OPEN) return false; socket.send(JSON.stringify(message)); return true; }
   window.GwayMonitorChannels.deployments.setRetry(function (name) {
