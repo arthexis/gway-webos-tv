@@ -386,6 +386,9 @@ class Bridge:
                 await ws.send(json.dumps(response))
         except (ValueError, asyncio.TimeoutError, OSError):
             await ws.close(1008, "Invalid request")
+        finally:
+            if self.diagnostic_tv is ws:
+                self.diagnostic_tv = None
 
 
 async def run(args):
