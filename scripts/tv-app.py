@@ -134,10 +134,26 @@ def load_manifest(source):
     return manifest, meta
 
 
+def source_revision():
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT,
+        capture_output=True, text=True, check=True
+    ).stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("Invalid source revision")
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=normal"],
+        cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout
+    if dirty.strip():
+        raise ValueError("Cannot attest build from a dirty source tree")
+    return revision
+
+
 def stage_app(source, staged, manifest, config):
     shutil.copytree(source, staged)
     (staged / "manifest.json").unlink()
-    revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    revision = source_revision()
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('Invalid source revision')
     (staged / 'gway-build.json').write_text(json.dumps({'schema': 1, 'git_sha': revision, 'build_id': revision[:16]}, sort_keys=True) + '\n')
@@ -262,7 +278,7 @@ def main():
                         shutil.copyfileobj(source_file, output)
             digest = hashlib.sha256(destination.read_bytes()).hexdigest()
             sidecar = destination.with_name(destination.name + '.sha256.json')
-            sidecar.write_text(json.dumps({'schema': 1, 'app_id': app_id, 'version': version, 'git_sha': subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip(), 'ipk_sha256': digest}, sort_keys=True) + '\n')
+            sidecar.write_text(json.dumps({'schema': 1, 'app_id': app_id, 'version': version, 'git_sha': source_revision(), 'ipk_sha256': digest}, sort_keys=True) + '\n')
             print(f"Package: {destination}")
             if args.install:
                 command("ares-install", "--device", args.device, destination)
