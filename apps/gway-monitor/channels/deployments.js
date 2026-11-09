@@ -54,7 +54,9 @@
       var detail = document.createElement('p');
       var parsed = item.deployed_at ? new Date(item.deployed_at) : null;
       var dateText = parsed && !isNaN(parsed.getTime()) ? parsed.toLocaleString() : 'Date unavailable';
-      detail.textContent = 'Revision: ' + (item.revision || 'unknown') + ' · Deployed: ' + dateText;
+      detail.textContent = item.installation === 'staged' && !item.revision && /^[0-9a-f]{40}$/.test(item.staged_revision || '') ?
+        'Staged revision: ' + item.staged_revision.slice(0, 12) + ' · Not activated' :
+        'Revision: ' + (item.revision || 'unknown') + ' · Deployed: ' + dateText;
       var state = document.createElement('p'); state.className = 'muted';
       state.textContent = 'Install: ' + item.installation + ' · Health: ' + item.health + (item.error ? ' · Evidence: ' + item.error : '') + (errors[item.name] ? ' · Retry: ' + errors[item.name] : '');
       var text = document.createElement('div'); text.className = 'status-copy';
