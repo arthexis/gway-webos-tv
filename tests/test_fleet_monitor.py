@@ -27,3 +27,26 @@ def test_authenticated_inventory(monkeypatch, tmp_path):
     assert result['nodes'][0]['node'] == 'gway-001'
     assert result['nodes'][0]['identity_verified'] is True
     fleet_monitor._CACHE = None
+
+
+def test_legacy_inventory_has_unknown_telemetry(monkeypatch, tmp_path):
+    fleet_monitor._CACHE = None
+    token = tmp_path / 'token'
+    token.write_text('example-token')
+    token.chmod(0o600)
+    monkeypatch.setenv('GWAY_FLEET_MCP_URL', 'https://remote.arthexis.com/mcp')
+    monkeypatch.setenv('GWAY_FLEET_TOKEN_FILE', str(token))
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, limit):
+            return json.dumps({'result': {'structuredContent': {
+                'source': 'watchtower-enrollment-ledger',
+                'nodes': [{'node': 'gway-001', 'identity_verified': True, 'reachable': 'unknown'}]
+            }}}).encode()
+    monkeypatch.setattr(fleet_monitor.urllib.request, 'urlopen', lambda request, timeout: Response())
+    row = fleet_monitor.snapshot()['nodes'][0]
+    assert row['hardware']['available'] is False
+    assert row['services']['available'] is False
+    assert row['deployments']['available'] is False
+    fleet_monitor._CACHE = None
