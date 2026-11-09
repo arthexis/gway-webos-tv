@@ -12,3 +12,32 @@ def test_deployment_status(monkeypatch):
 def test_unavailable(monkeypatch):
     monkeypatch.setattr(deployment_monitor, 'read_json', lambda argv: None)
     assert deployment_monitor.snapshot()['available'] is False
+
+
+def test_verified_nonresident_agentops(monkeypatch):
+    evidence = {
+        'repository': 'arthexis/gway-agent-ops',
+        'activated_revision': 'ac1ff877',
+        'installation_state': 'activated',
+        'runtime_state': 'not_applicable',
+        'capabilities': {'runtime_required': False, 'runtime_probe': False},
+        'evidence': ['verified_active_release'],
+    }
+    monkeypatch.setattr(deployment_monitor, 'read_json', lambda argv: {
+        'components': [{'name': 'gway-agent-ops', 'deployment_evidence': evidence}]
+    })
+    item = deployment_monitor.snapshot()['components'][0]
+    assert item['installation'] == 'activated'
+    assert item['health'] == 'not_applicable'
+    assert item['runtime_required'] is False
+    assert item['verified_release'] is True
+
+
+def test_nonresident_without_verified_release_is_not_verified(monkeypatch):
+    monkeypatch.setattr(deployment_monitor, 'read_json', lambda argv: {
+        'components': [{'name': 'gway-agent-ops', 'deployment_evidence': {
+            'installation_state': 'activated', 'runtime_state': 'not_applicable',
+            'capabilities': {'runtime_required': False}, 'evidence': []
+        }}]
+    })
+    assert deployment_monitor.snapshot()['components'][0]['verified_release'] is False

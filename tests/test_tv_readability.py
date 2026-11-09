@@ -56,6 +56,13 @@ assert.equal(s.deployment({installation:'installed',health:'failed',outdated:tru
 assert.equal(s.deployment({installation:'deploying',health:'unknown'}).level,'pending');
 assert.equal(s.deployment({installation:'installed',health:'degraded'}).level,'degraded');
 assert.equal(s.deployment({installation:'unknown',health:'unknown'}).level,'unknown');
+const agent={installation:'activated',health:'not_applicable',runtime_required:false,verified_release:true};
+assert.equal(s.deployment(agent).level,'passed');
+assert.equal(s.deployment(agent).label,'Installed');
+assert.equal(s.deployment({...agent,verified_release:false}).level,'unknown');
+assert.equal(s.deployment({...agent,runtime_required:true}).level,'unknown');
+assert.equal(s.deployment({...agent,installation:'failed'}).level,'failed');
+assert.equal(s.deployment({...agent,health:'failed'}).level,'failed');
 assert.equal(s.deployment({installation:'installed',health:'healthy',target_revision:'abc',revision:'def'}).level,'outdated');
 const badge=s.badge(s.github({ci:'passed',merge:'CLEAN'}));
 assert.equal(badge.attrs['aria-label'],'Ready');
