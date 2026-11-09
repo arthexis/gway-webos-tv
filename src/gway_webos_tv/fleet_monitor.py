@@ -48,7 +48,7 @@ def snapshot():
         for row in inventory['nodes'][:100]:
             if not isinstance(row, dict) or not isinstance(row.get('node'), str):
                 continue
-            nodes.append({'node': row['node'][:64], 'reachable': row.get('reachable') if row.get('reachable') in ('reachable','unknown') else 'unknown', 'identity_verified': row.get('identity_verified') is True, 'observed_at': row.get('observed_at') if isinstance(row.get('observed_at'), str) else None})
+            nodes.append({'node': row['node'][:64], 'reachable': row.get('reachable') if row.get('reachable') in ('reachable','unknown') else 'unknown', 'identity_verified': row.get('identity_verified') is True, 'observed_at': row.get('observed_at') if isinstance(row.get('observed_at'), str) else None, 'hardware': row.get('hardware') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('hardware'), dict) else {'available': False}, 'services': row.get('services') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('services'), dict) else {'available': False}, 'deployments': row.get('deployments') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('deployments'), dict) else {'available': False}})
         result = {'available': True, 'source': 'Watchtower MCP node_list', 'nodes': nodes, 'observed_at': inventory.get('generated_at')}
     except (OSError, ValueError, KeyError, StopIteration, TypeError, urllib.error.URLError):
         result['error'] = 'Authenticated Watchtower inventory unavailable'
