@@ -245,6 +245,7 @@ class Bridge:
                 if not (
                     self.authorized(session_digest, "monitor.read")
                     or self.authorized(session_digest, "button.pressed")
+                    or self.authorized(session_digest, "monitor.diagnostic.read")
                 ):
                     await ws.close(1008, "Authentication denied")
                     return
@@ -256,6 +257,7 @@ class Bridge:
                 if not (
                     self.authorized(session_digest, "monitor.read")
                     or self.authorized(session_digest, "button.pressed")
+                    or self.authorized(session_digest, "monitor.diagnostic.read")
                 ):
                     await ws.close(1008, "Credential revoked")
                     return
