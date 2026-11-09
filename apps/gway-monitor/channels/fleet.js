@@ -36,8 +36,19 @@
       var status = document.createElement('p');
       status.textContent = 'Reachability: ' + item.reachable + ' · Identity: ' + (item.identity_verified ? 'verified' : 'unverified');
       var observed = document.createElement('p'); observed.className = 'muted';
-      observed.textContent = 'Last observation: ' + (item.observed_at || 'unknown') + ' · Service health: not measured';
-      card.appendChild(heading); card.appendChild(status); card.appendChild(observed); node.appendChild(card);
+      observed.textContent = 'Last observation: ' + (item.observed_at || 'unknown');
+      var telemetry = document.createElement('p'); telemetry.className = 'muted';
+      var hw = item.hardware || {}, services = item.services || {}, deployments = item.deployments || {};
+      var data = hw.available && hw.data && typeof hw.data === 'object' ? hw.data : null;
+      var memory = data && data.memory && typeof data.memory.used_percent === 'number' ? data.memory.used_percent + '%' : 'unknown';
+      var temp = data && typeof data.cpu_temperature_c === 'number' ? data.cpu_temperature_c + '°C' : 'unknown';
+      var uptime = data && typeof data.uptime_seconds === 'number' ? duration(data.uptime_seconds) : 'unknown';
+      telemetry.textContent = 'CPU temp: ' + temp + ' · RAM: ' + memory + ' · Uptime: ' + uptime;
+      var health = document.createElement('p'); health.className = 'muted';
+      var serviceList = services.available && Array.isArray(services.components) ? services.components : null;
+      health.textContent = 'Services: ' + (serviceList ? serviceList.length + ' observed' : 'unknown') +
+        ' · Deployments: ' + (deployments.available && Array.isArray(deployments.components) ? deployments.components.length + ' observed' : 'unknown');
+      card.appendChild(heading); card.appendChild(status); card.appendChild(observed); card.appendChild(telemetry); card.appendChild(health); node.appendChild(card);
     });
     highlight(false);
   }
