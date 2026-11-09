@@ -55,3 +55,32 @@ No merge or deploy is authorized by this draft.
 - WSS coverage includes two authenticated clients, unauthorized operator/TV, replay, server nonce deadline, TV disconnect, and concurrent operator serialization; isolated tests were 10 passed on gway-001. No live TV session or independent installed-IPK byte readback was performed.
 - **Merge-readiness: conditional / not field-accepted.** Transport authorization and replay controls are covered, but the responder credential authenticates a client, not the specific installed app. Returned `git_sha`, `build_id`, DOM label and ARIA are client assertions. External IPK SHA-256 is checked against local bytes; no cryptographic link to installed TV bytes. Operator credentials need explicit provisioning. Actual TV-visible AgentOps badge remains unobserved.
 - Keep PR draft, #32 open and do not deploy or merge pending a separately authorized field acceptance and provenance decision.
+
+## Read-only TV acceptance procedure — audit of 2026-11-09
+
+### Verified CI
+
+Workflow **42561263560** for `63c21b3134e0cd8a1e07fcfba9a6557338470b04` completed **SUCCESS**. Python 3.11 and 3.13 test/build jobs, deployment validation and aggregate gate each completed successfully.
+
+### 1. Establish independent identity of the local artifact (no TV mutation)
+
+1. Select the previously produced, immutable `com.arthexis.gway.monitor_<version>_all.ipk` and its matching `.sha256.json` sidecar from a trusted build output. Do **not** rebuild, reinstall, launch, or replace packages during read-only acceptance.
+2. Run `verify_package_sidecar(package, sidecar)` locally: it checks exact package bytes against the recorded SHA-256 and checks schema, app ID/version and Git SHA/build ID relationship. Record file path, actual computed digest, source commit and provenance of the artifact. An unsigned sidecar can be edited together with an IPK; therefore an independently trusted build record or signed digest is required for supply-chain integrity.
+3. Compare the developer profile and read-only paired-TV identity if available; `ares-install --listfull` or app version only establishes presence/version, **not the installed package SHA-256**. Do not substitute a screenshot, `ares-inspect`, a Git SHA reported by the app, or a reconstructed IPK for installed-byte verification.
+
+### 2. Read the actual DOM over authenticated WSS (no screenshots or ares-inspect)
+
+1. Verify from existing configuration that the running bridge has the diagnostic code and a registered GWAY Monitor TV session with explicit `monitor.diagnostic.respond`; the requesting operator must have distinct `monitor.diagnostic.read`. **The draft code is not deployed**, so the new protocol cannot be tested on the actual TV until separately authorized installation.
+2. With the **Deployments channel visible on the TV**, send exactly one `monitor.diagnostic.request` for `arthexis/gway-agent-ops` from an authenticated read-only WSS operator session. The bridge issues a fresh random 128-bit nonce and a five-second challenge to its registered TV socket; record the challenge nonce, bridge identity, requesting session, receipt timestamp and whether the response arrived before the server deadline. Never record credentials.
+3. Inspect `monitor.diagnostic.result`: require matching nonce, TV socket, `channel=deployments`, `visible=true`, non-null `card.repository=arthexis/gway-agent-ops`, `card.badge=Installed`, and `card.aria_label=Installed`; record `observed_at`, `git_sha`, `build_id` and exact response size. A null card, `unavailable`, expired response or mismatched value is **not** a successful acceptance.
+4. The TV-side code reads `#deployments #deployment-list > article`, matches the rendered `h2` and reads `.status-badge .status-label` plus `aria-label` from the DOM. It does **not** recompute status from collector JSON. This is stronger evidence of the *client-reported visible DOM* than a collector snapshot, but the bridge still trusts a credential-bearing client to report it accurately.
+
+### 3. Exact installed IPK SHA: proof boundary and decision
+
+**Current implementation cannot independently establish the exact SHA-256 of the IPK installed on webOS.** The external sidecar attests only the locally built IPK; the client-supplied `git_sha`/`build_id` are not installed-byte hashes. webOS may unpack or transform the package, so hashing application files would not generally reproduce the original IPK digest. A trustworthy installed-package receipt from the TV/package manager that binds the exact artifact digest to the installed app, or an independently authenticated device-side package readback with a defined byte-for-byte comparison, is required. If neither exists, record **NOT VERIFIABLE** rather than asserting equivalence. No package-manager readback interface has been demonstrated here.
+
+### Security and release decision
+
+- WSS scope, nonce, replay, expiry, disconnect and concurrency have automated tests; read-only diagnostics cannot trigger deployment. Operator read access and TV responder permission must be separately provisioned.
+- A credential compromise or malicious TV client can fabricate DOM and build identity; nonce/session correlation does not make the client trustworthy. Do not interpret the badge as proof of the installed IPK.
+- **CI: PASS. Protocol automated tests: PASS. Actual TV DOM: NOT TESTED. Exact installed IPK SHA: NOT VERIFIABLE with current evidence. Merge readiness: HOLD / DRAFT.** No merge or deployment authorized.
