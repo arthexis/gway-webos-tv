@@ -86,6 +86,7 @@ class Bridge:
         self.deploy_jobs = {}
         self.deploy_lock = asyncio.Lock()
         self.diagnostic_tv = None
+        self.diagnostic_tv_digest = None
         self.diagnostic_pending = None
         self.diagnostic_lock = asyncio.Lock()
 
@@ -263,7 +264,11 @@ class Bridge:
                     if not self.authorized(session_digest, "monitor.diagnostic.respond"):
                         await ws.close(1008, "Capability denied")
                         return
+                    if self.diagnostic_tv is not None and self.diagnostic_tv is not ws:
+                        await ws.close(1008, "Diagnostic TV already registered")
+                        return
                     self.diagnostic_tv = ws
+                    self.diagnostic_tv_digest = session_digest
                     continue
                 if isinstance(data, dict) and data.get("type") == "monitor.diagnostic.request":
                     if not self.authorized(session_digest, "monitor.diagnostic.read"):
@@ -274,7 +279,7 @@ class Bridge:
                         return
                     async with self.diagnostic_lock:
                         tv = self.diagnostic_tv
-                        if tv is None or tv is ws:
+                        if (tv is None or tv is ws or not self.authorized(self.diagnostic_tv_digest, "monitor.diagnostic.respond")):
                             await ws.send(json.dumps({"type": "monitor.diagnostic.unavailable"}))
                             continue
                         nonce = secrets.token_hex(16)
@@ -389,6 +394,9 @@ class Bridge:
         finally:
             if self.diagnostic_tv is ws:
                 self.diagnostic_tv = None
+                self.diagnostic_tv_digest = None
+                if self.diagnostic_pending is not None and not self.diagnostic_pending[2].done():
+                    self.diagnostic_pending[2].set_result({"type": "monitor.diagnostic.unavailable"})
 
 
 async def run(args):
