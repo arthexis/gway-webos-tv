@@ -121,7 +121,8 @@ class Bridge:
                 isinstance(item, str) and hmac.compare_digest(digest, item) for item in hashes
             )
             if legacy:
-                return capability not in ("monitor.read", "deployment.retry")
+                return capability not in ("monitor.read", "deployment.retry",
+                                          "monitor.diagnostic.read", "monitor.diagnostic.respond")
             scoped = record.get("scoped", {})
             return (
                 isinstance(scoped, dict)
