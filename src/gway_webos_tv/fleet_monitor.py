@@ -20,7 +20,7 @@ def snapshot():
         return _CACHE
     url = os.environ.get('GWAY_FLEET_MCP_URL', '')
     token_file = os.environ.get('GWAY_FLEET_TOKEN_FILE', '')
-    result = {'available': False, 'source': 'Watchtower MCP node_list', 'nodes': [], 'error': 'Watchtower inventory not configured'}
+    result = {'available': False, 'source': 'Watchtower MCP fleet_snapshot', 'nodes': [], 'error': 'Watchtower inventory not configured'}
     if not url.startswith('https://') or not url.endswith('/mcp') or not token_file:
         return result
     try:
@@ -30,7 +30,7 @@ def snapshot():
         token = path.read_text().strip()
         if not token or len(token) > 4096:
             raise ValueError('invalid token')
-        request = urllib.request.Request(url, data=json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'node_list','arguments':{}}}).encode(), headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json, text/event-stream'}, method='POST')
+        request = urllib.request.Request(url, data=json.dumps({'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'fleet_snapshot','arguments':{}}}).encode(), headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/json, text/event-stream'}, method='POST')
         with urllib.request.urlopen(request, timeout=5) as response:
             raw = response.read(131073)
         if len(raw) > 131072:
@@ -42,12 +42,12 @@ def snapshot():
         else:
             blocks = body.get('content', [])
             inventory = json.loads(next(x['text'] for x in blocks if x.get('type') == 'text'))
-        if inventory.get('source') != 'watchtower-enrollment-ledger' or not isinstance(inventory.get('nodes'), list):
+        if inventory.get('schema') != 'gway-remote/fleet/v1' or inventory.get('source') != 'watchtower-enrollment-ledger' or not isinstance(inventory.get('nodes'), list) or len(inventory['nodes']) > 100:
             raise ValueError('invalid inventory')
         nodes = []
-        for row in inventory['nodes'][:100]:
-            if not isinstance(row, dict) or not isinstance(row.get('node'), str):
-                continue
+        for row in inventory['nodes']:
+            if not isinstance(row, dict) or not isinstance(row.get('node'), str) or not row['node'].startswith('gway-') or len(row['node']) > 64:
+                raise ValueError('invalid fleet node')
             nodes.append({'node': row['node'][:64], 'reachable': row.get('reachable') if row.get('reachable') in ('reachable','unknown') else 'unknown', 'identity_verified': row.get('identity_verified') is True, 'observed_at': row.get('observed_at') if isinstance(row.get('observed_at'), str) else None, 'hardware': row.get('hardware') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('hardware'), dict) else {'available': False}, 'services': row.get('services') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('services'), dict) else {'available': False}, 'deployments': row.get('deployments') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('deployments'), dict) else {'available': False}})
         result = {'available': True, 'source': 'Watchtower MCP node_list', 'nodes': nodes, 'observed_at': inventory.get('generated_at')}
     except (OSError, ValueError, KeyError, StopIteration, TypeError, urllib.error.URLError):
