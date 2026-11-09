@@ -286,7 +286,7 @@ class Bridge:
                             continue
                         nonce = secrets.token_hex(16)
                         future = asyncio.get_running_loop().create_future()
-                        self.diagnostic_pending = (nonce, tv, future)
+                        self.diagnostic_pending = (nonce, tv, future, time.monotonic() + 5)
                         try:
                             await tv.send(json.dumps({"type": "monitor.diagnostic.request", "nonce": nonce,
                                 "expires_at": int(time.time() * 1000) + 5000,
@@ -303,7 +303,8 @@ class Bridge:
                     pending = self.diagnostic_pending
                     if (not self.authorized(session_digest, "monitor.diagnostic.respond")
                         or pending is None or pending[1] is not ws
-                        or data.get("nonce") != pending[0] or len(raw) > 1024):
+                        or data.get("nonce") != pending[0] or len(raw) > 1024
+                        or time.monotonic() > pending[3]):
                         await ws.close(1008, "Invalid diagnostic response")
                         return
                     card = data.get("card")
