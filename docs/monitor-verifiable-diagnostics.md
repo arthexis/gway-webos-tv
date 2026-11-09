@@ -27,3 +27,10 @@ No merge or deploy is authorized by this draft.
 - **Security review required:** current protocol does not yet verify that the returned Git SHA is present in a trusted server-side build registry, and the app-side identity is self-reported. The current frontend reads `gway-build.json` synchronously; review compatibility and failure behavior before merge. Explicit operator credential provisioning is intentionally not automated.
 - Tests currently cover DOM positive/negative and unprivileged WSS rejection; full two-socket authenticated WSS happy path, replay, expiry, disconnect, and concurrent requests still require tests.
 - **Do not merge or deploy until full CI and security validation.**
+
+## Verification checkpoint (PR #33)
+
+- Separate temporary worktree on gway-001, no deployment: isolated diagnostic/packaging suite 6 passed; latest diagnostic suite 6 passed after expiry/disconnect coverage.
+- GitHub Actions workflow 42559467991 was still running at last check. Full local suite exceeded the 60-second remote execution limit; **do not claim it passed**.
+- Security fixes: permit explicit diagnostic-only operator login, enforce server-side nonce deadline, reject second TV registration, fail pending request when TV disconnects, asynchronously load build identity, reject dirty source trees for attestation.
+- Remaining acceptance/security gaps: concurrent operator request test, build-sidecar provenance validation, live TV proof, and final CI conclusion. Treat client-reported DOM and SHA as authenticated client assertions, not cryptographic hardware attestation.
