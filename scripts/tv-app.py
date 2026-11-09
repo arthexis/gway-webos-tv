@@ -151,9 +151,9 @@ def source_revision():
 
 
 def stage_app(source, staged, manifest, config):
+    revision = source_revision()
     shutil.copytree(source, staged)
     (staged / "manifest.json").unlink()
-    revision = source_revision()
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('Invalid source revision')
     (staged / 'gway-build.json').write_text(json.dumps({'schema': 1, 'git_sha': revision, 'build_id': revision[:16]}, sort_keys=True) + '\n')
@@ -255,6 +255,7 @@ def main():
             with tempfile.TemporaryDirectory(prefix="gway-webos-build-") as temporary:
                 root = Path(temporary)
                 staged = root / "app"
+                revision = source_revision()
                 stage_app(source, staged, manifest, args.config)
                 command("ares-package", "-o", root, staged)
                 package = root / f"{app_id}_{version}_all.ipk"
@@ -278,7 +279,17 @@ def main():
                         shutil.copyfileobj(source_file, output)
             digest = hashlib.sha256(destination.read_bytes()).hexdigest()
             sidecar = destination.with_name(destination.name + '.sha256.json')
-            sidecar.write_text(json.dumps({'schema': 1, 'app_id': app_id, 'version': version, 'git_sha': source_revision(), 'ipk_sha256': digest}, sort_keys=True) + '\n')
+            metadata = {'schema': 1, 'app_id': app_id, 'version': version,
+                        'git_sha': revision, 'build_id': revision[:16], 'ipk_sha256': digest}
+            fd, temporary_metadata = tempfile.mkstemp(prefix='.webos-build-', dir=args.output_dir)
+            try:
+                with os.fdopen(fd, 'w') as stream:
+                    json.dump(metadata, stream, sort_keys=True)
+                    stream.write('\\n')
+                os.replace(temporary_metadata, sidecar)
+            finally:
+                if os.path.exists(temporary_metadata):
+                    os.unlink(temporary_metadata)
             print(f"Package: {destination}")
             if args.install:
                 command("ares-install", "--device", args.device, destination)
