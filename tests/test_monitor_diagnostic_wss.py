@@ -47,3 +47,77 @@ def test_nonce_response_requires_registered_session(tmp_path):
     assert bridge.diagnostic_pending is None
     assert bridge.diagnostic_tv is None
     assert not bridge.authorized("invalid", "monitor.diagnostic.read")
+
+
+def test_two_authenticated_clients_nonce_replay_and_expiry(tmp_path):
+    import time
+    from websockets.asyncio.server import serve
+    from websockets.asyncio.client import connect
+    from websockets.exceptions import ConnectionClosed
+
+    viewer, tv = "operator", "tv-credential"
+    write_private(tmp_path / "credential.json", {
+        "sha256": None, "additional_sha256": [],
+        "scoped": {
+            hashlib.sha256(viewer.encode()).hexdigest(): ["monitor.diagnostic.read"],
+            hashlib.sha256(tv.encode()).hexdigest(): ["monitor.read", "monitor.diagnostic.respond"],
+        }
+    })
+    bridge = Bridge(tmp_path)
+
+    async def check():
+        async with serve(bridge.handler, "127.0.0.1", 0, max_size=2048) as server:
+            url = "ws://127.0.0.1:" + str(server.sockets[0].getsockname()[1])
+            async with connect(url) as tv_ws, connect(url) as operator:
+                await tv_ws.send(json.dumps({"type": "auth", "credential": tv}))
+                assert json.loads(await tv_ws.recv())["type"] == "ready"
+                await tv_ws.send(json.dumps({"type": "monitor.diagnostic.register"}))
+                await operator.send(json.dumps({"type": "auth", "credential": viewer}))
+                assert json.loads(await operator.recv())["type"] == "ready"
+                await operator.send(json.dumps({"type": "monitor.diagnostic.request",
+                                                "repository": "arthexis/gway-agent-ops"}))
+                challenge = json.loads(await asyncio.wait_for(tv_ws.recv(), 2))
+                assert challenge["type"] == "monitor.diagnostic.request"
+                assert len(challenge["nonce"]) == 32
+                assert challenge["expires_at"] > time.time() * 1000
+                result = {"type": "monitor.diagnostic.result", "nonce": challenge["nonce"],
+                          "git_sha": "a" * 40, "build_id": "aaaaaaaaaaaaaaaa",
+                          "channel": "deployments", "visible": True,
+                          "card": {"repository": "arthexis/gway-agent-ops",
+                                   "badge": "Installed", "aria_label": "Installed"}}
+                await tv_ws.send(json.dumps(result))
+                assert json.loads(await asyncio.wait_for(operator.recv(), 2))["card"]["badge"] == "Installed"
+                await tv_ws.send(json.dumps(result))
+                try:
+                    await asyncio.wait_for(tv_ws.recv(), 2)
+                    assert False, "replayed response accepted"
+                except ConnectionClosed as error:
+                    assert error.rcvd.code == 1008
+
+    asyncio.run(check())
+
+
+def test_diagnostic_operator_cannot_register_as_tv(tmp_path):
+    from websockets.asyncio.server import serve
+    from websockets.asyncio.client import connect
+    from websockets.exceptions import ConnectionClosed
+
+    write_private(tmp_path / "credential.json", {
+        "sha256": None, "additional_sha256": [],
+        "scoped": {hashlib.sha256(b"operator").hexdigest(): ["monitor.diagnostic.read", "monitor.read"]}
+    })
+
+    async def check():
+        async with serve(Bridge(tmp_path).handler, "127.0.0.1", 0) as server:
+            url = "ws://127.0.0.1:" + str(server.sockets[0].getsockname()[1])
+            async with connect(url) as ws:
+                await ws.send(json.dumps({"type": "auth", "credential": "operator"}))
+                assert json.loads(await ws.recv())["type"] == "ready"
+                await ws.send(json.dumps({"type": "monitor.diagnostic.register"}))
+                try:
+                    await asyncio.wait_for(ws.recv(), 2)
+                    assert False, "operator registered as TV"
+                except ConnectionClosed as error:
+                    assert error.rcvd.code == 1008
+
+    asyncio.run(check())
