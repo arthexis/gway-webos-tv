@@ -306,7 +306,7 @@ def main():
             try:
                 with os.fdopen(fd, 'w') as stream:
                     json.dump(metadata, stream, sort_keys=True)
-                    stream.write('\\n')
+                    stream.write('\n')
                 os.replace(temporary_metadata, sidecar)
             finally:
                 if os.path.exists(temporary_metadata):
