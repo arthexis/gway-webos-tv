@@ -121,3 +121,50 @@ def test_diagnostic_operator_cannot_register_as_tv(tmp_path):
                     assert error.rcvd.code == 1008
 
     asyncio.run(check())
+
+
+def test_expired_nonce_and_disconnected_tv_fail_closed(tmp_path):
+    import time
+    from websockets.asyncio.server import serve
+    from websockets.asyncio.client import connect
+    from websockets.exceptions import ConnectionClosed
+
+    tv, operator = "tv", "operator"
+    write_private(tmp_path / "credential.json", {
+        "sha256": None, "additional_sha256": [],
+        "scoped": {
+            hashlib.sha256(tv.encode()).hexdigest(): ["monitor.read", "monitor.diagnostic.respond"],
+            hashlib.sha256(operator.encode()).hexdigest(): ["monitor.diagnostic.read"]
+        }
+    })
+    bridge = Bridge(tmp_path)
+
+    async def check():
+        async with serve(bridge.handler, "127.0.0.1", 0) as server:
+            url = "ws://127.0.0.1:" + str(server.sockets[0].getsockname()[1])
+            async with connect(url) as tv_ws, connect(url) as op:
+                await tv_ws.send(json.dumps({"type": "auth", "credential": tv}))
+                await tv_ws.recv()
+                await tv_ws.send(json.dumps({"type": "monitor.diagnostic.register"}))
+                await op.send(json.dumps({"type": "auth", "credential": operator}))
+                await op.recv()
+                await op.send(json.dumps({"type": "monitor.diagnostic.request",
+                                          "repository": "arthexis/gway-agent-ops"}))
+                challenge = json.loads(await asyncio.wait_for(tv_ws.recv(), 2))
+                # Simulate a server-side expired nonce without sleeping.
+                nonce, registered, future, _ = bridge.diagnostic_pending
+                bridge.diagnostic_pending = (nonce, registered, future, time.monotonic() - 1)
+                await tv_ws.send(json.dumps({"type": "monitor.diagnostic.result",
+                                              "nonce": challenge["nonce"],
+                                              "git_sha": "a" * 40, "build_id": "abc",
+                                              "channel": "deployments", "visible": True,
+                                              "card": None}))
+                try:
+                    await asyncio.wait_for(tv_ws.recv(), 2)
+                    assert False, "expired nonce accepted"
+                except ConnectionClosed as error:
+                    assert error.rcvd.code == 1008
+                assert json.loads(await asyncio.wait_for(op.recv(), 2))["type"] == "monitor.diagnostic.unavailable"
+            assert bridge.diagnostic_tv is None
+
+    asyncio.run(check())
