@@ -20,7 +20,7 @@ def test_authenticated_inventory(monkeypatch, tmp_path):
         def __enter__(self): return self
         def __exit__(self, *args): pass
         def read(self, limit):
-            return json.dumps({'result': {'structuredContent': {'source': 'watchtower-enrollment-ledger', 'nodes': [{'node': 'gway-001', 'reachable': 'reachable', 'identity_verified': True, 'observed_at': '2026-11-06T00:00:00Z'}]}}}).encode()
+            return json.dumps({'result': {'structuredContent': {'schema': 'gway-remote/fleet/v1', 'source': 'watchtower-enrollment-ledger', 'nodes': [{'node': 'gway-001', 'reachable': 'reachable', 'identity_verified': True, 'observed_at': '2026-11-06T00:00:00Z'}]}}}).encode()
     monkeypatch.setattr(fleet_monitor.urllib.request, 'urlopen', lambda request, timeout: Response())
     result = fleet_monitor.snapshot()
     assert result['available'] is True
@@ -29,7 +29,7 @@ def test_authenticated_inventory(monkeypatch, tmp_path):
     fleet_monitor._CACHE = None
 
 
-def test_legacy_inventory_has_unknown_telemetry(monkeypatch, tmp_path):
+def test_legacy_inventory_rejected(monkeypatch, tmp_path):
     fleet_monitor._CACHE = None
     token = tmp_path / 'token'
     token.write_text('example-token')
@@ -45,8 +45,6 @@ def test_legacy_inventory_has_unknown_telemetry(monkeypatch, tmp_path):
                 'nodes': [{'node': 'gway-001', 'identity_verified': True, 'reachable': 'unknown'}]
             }}}).encode()
     monkeypatch.setattr(fleet_monitor.urllib.request, 'urlopen', lambda request, timeout: Response())
-    row = fleet_monitor.snapshot()['nodes'][0]
-    assert row['hardware']['available'] is False
-    assert row['services']['available'] is False
-    assert row['deployments']['available'] is False
+    result = fleet_monitor.snapshot()
+    assert result['available'] is False
     fleet_monitor._CACHE = None
