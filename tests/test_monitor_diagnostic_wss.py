@@ -168,3 +168,53 @@ def test_expired_nonce_and_disconnected_tv_fail_closed(tmp_path):
             assert bridge.diagnostic_tv is None
 
     asyncio.run(check())
+
+
+def test_concurrent_operators_are_serialized(tmp_path):
+    from websockets.asyncio.server import serve
+    from websockets.asyncio.client import connect
+
+    tv, first, second = "tv", "first", "second"
+    write_private(tmp_path / "credential.json", {
+        "sha256": None, "additional_sha256": [],
+        "scoped": {
+            hashlib.sha256(tv.encode()).hexdigest(): ["monitor.read", "monitor.diagnostic.respond"],
+            hashlib.sha256(first.encode()).hexdigest(): ["monitor.diagnostic.read"],
+            hashlib.sha256(second.encode()).hexdigest(): ["monitor.diagnostic.read"]
+        }
+    })
+    bridge = Bridge(tmp_path)
+
+    async def check():
+        async with serve(bridge.handler, "127.0.0.1", 0) as server:
+            url = "ws://127.0.0.1:" + str(server.sockets[0].getsockname()[1])
+            async with connect(url) as tv_ws, connect(url) as op1, connect(url) as op2:
+                for ws, credential in ((tv_ws, tv), (op1, first), (op2, second)):
+                    await ws.send(json.dumps({"type": "auth", "credential": credential}))
+                    assert json.loads(await ws.recv())["type"] == "ready"
+                await tv_ws.send(json.dumps({"type": "monitor.diagnostic.register"}))
+                request = json.dumps({"type": "monitor.diagnostic.request",
+                                      "repository": "arthexis/gway-agent-ops"})
+                await asyncio.gather(op1.send(request), op2.send(request))
+                challenge1 = json.loads(await asyncio.wait_for(tv_ws.recv(), 2))
+                # No second challenge until the first response has completed.
+                try:
+                    await asyncio.wait_for(tv_ws.recv(), 0.1)
+                    assert False, "concurrent challenge leaked before completion"
+                except asyncio.TimeoutError:
+                    pass
+                def response(challenge):
+                    return json.dumps({"type": "monitor.diagnostic.result",
+                                       "nonce": challenge["nonce"], "git_sha": "a" * 40,
+                                       "build_id": "aaaaaaaaaaaaaaaa", "channel": "deployments",
+                                       "visible": True, "card": None})
+                await tv_ws.send(response(challenge1))
+                outcomes = [asyncio.create_task(op.recv()) for op in (op1, op2)]
+                await asyncio.sleep(0.1)
+                assert sum(task.done() for task in outcomes) == 1
+                challenge2 = json.loads(await asyncio.wait_for(tv_ws.recv(), 2))
+                assert challenge2["nonce"] != challenge1["nonce"]
+                await tv_ws.send(response(challenge2))
+                results = await asyncio.gather(*outcomes)
+                assert all(json.loads(result)["type"] == "monitor.diagnostic.result" for result in results)
+    asyncio.run(check())
