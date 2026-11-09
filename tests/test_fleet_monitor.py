@@ -49,3 +49,24 @@ def test_legacy_inventory_rejected(monkeypatch, tmp_path):
     result = fleet_monitor.snapshot()
     assert result['available'] is False
     fleet_monitor._CACHE = None
+
+def test_rejects_duplicate_nodes(monkeypatch, tmp_path):
+    fleet_monitor._CACHE = None
+    token = tmp_path / 'token'
+    token.write_text('example-token')
+    token.chmod(0o600)
+    monkeypatch.setenv('GWAY_FLEET_MCP_URL', 'https://remote.arthexis.com/mcp')
+    monkeypatch.setenv('GWAY_FLEET_TOKEN_FILE', str(token))
+    row = {'node': 'gway-001', 'identity_verified': True}
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, limit):
+            return json.dumps({'result': {'structuredContent': {
+                'schema': 'gway-remote/fleet/v1',
+                'source': 'watchtower-enrollment-ledger',
+                'generated_at': datetime.now(timezone.utc).isoformat(),
+                'nodes': [row, row]}}}).encode()
+    monkeypatch.setattr(fleet_monitor.urllib.request, 'urlopen', lambda request, timeout: Response())
+    assert fleet_monitor.snapshot()['available'] is False
+    fleet_monitor._CACHE = None
