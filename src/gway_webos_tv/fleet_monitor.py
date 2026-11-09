@@ -4,6 +4,8 @@ The bridge never serves credentials to the TV. Configuration is optional and
 must be provisioned separately; unavailable is not equivalent to offline.
 """
 import json
+import re
+from datetime import datetime, timezone
 import os
 import time
 import urllib.error
@@ -44,10 +46,19 @@ def snapshot():
             inventory = json.loads(next(x['text'] for x in blocks if x.get('type') == 'text'))
         if inventory.get('schema') != 'gway-remote/fleet/v1' or inventory.get('source') != 'watchtower-enrollment-ledger' or not isinstance(inventory.get('nodes'), list) or len(inventory['nodes']) > 100:
             raise ValueError('invalid inventory')
+        generated = inventory.get('generated_at')
+        if not isinstance(generated, str):
+            raise ValueError('missing fleet timestamp')
+        timestamp = datetime.fromisoformat(generated.replace('Z', '+00:00'))
+        age = (datetime.now(timezone.utc) - timestamp).total_seconds()
+        if timestamp.tzinfo is None or not 0 <= age <= 120:
+            raise ValueError('stale fleet snapshot')
         nodes = []
+        seen = set()
         for row in inventory['nodes']:
-            if not isinstance(row, dict) or not isinstance(row.get('node'), str) or not row['node'].startswith('gway-') or len(row['node']) > 64:
+            if not isinstance(row, dict) or not isinstance(row.get('node'), str) or not re.fullmatch(r'gway-[0-9]+', row['node']) or row['node'] in seen:
                 raise ValueError('invalid fleet node')
+            seen.add(row['node'])
             nodes.append({'node': row['node'][:64], 'reachable': row.get('reachable') if row.get('reachable') in ('reachable','unknown') else 'unknown', 'identity_verified': row.get('identity_verified') is True, 'observed_at': row.get('observed_at') if isinstance(row.get('observed_at'), str) else None, 'hardware': row.get('hardware') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('hardware'), dict) else {'available': False}, 'services': row.get('services') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('services'), dict) else {'available': False}, 'deployments': row.get('deployments') if inventory.get('schema') == 'gway-remote/fleet/v1' and isinstance(row.get('deployments'), dict) else {'available': False}})
         result = {'available': True, 'source': 'Watchtower MCP node_list', 'nodes': nodes, 'observed_at': inventory.get('generated_at')}
     except (OSError, ValueError, KeyError, StopIteration, TypeError, urllib.error.URLError):
