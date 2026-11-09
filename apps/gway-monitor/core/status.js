@@ -22,6 +22,8 @@
     if (item.outdated === true || (item.target_revision && item.revision && item.target_revision !== item.revision)) return result('outdated', 'Outdated');
     if (['installed','active','activated','success','succeeded','ok'].indexOf(install) !== -1 &&
         ['healthy','active','running','ok','success'].indexOf(health) !== -1) return result('passed', 'Healthy');
+    if (install === 'activated' && health === 'notapplicable' &&
+        item.runtime_required === false && item.verified_release === true) return result('passed', 'Installed');
     return result('unknown', 'Unknown');
   }
   var symbols = {passed:'✓',failed:'×',pending:'↻',draft:'✎',outdated:'↓',degraded:'!',unknown:'?'};
