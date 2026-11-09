@@ -41,3 +41,10 @@ No merge or deploy is authorized by this draft.
 - IPK sidecar now has strict schema and source/build consistency validation; actual IPK SHA-256 is verified before install. Negative test rejects tampered package bytes and inconsistent build ID. Sidecar is atomically replaced after package output.
 - The sidecar proves integrity of the *local artifact against its accompanying metadata*, not that the TV currently runs that artifact. A trusted signed release or readback of installed bytes is still necessary for stronger remote provenance.
 - Persistent full-suite runner started via detached process on gway-001 after `systemd-run --user` failed (no user bus). Its initial checkout precedes the latest provenance test, so a final run must use latest HEAD. Do not count a pending runner or queued CI as passed.
+
+## Security audit follow-up
+
+- Workflow 42560280366 for e26d8c5 completed SUCCESS across Python 3.11, Python 3.13, deployment validation, and aggregate CI.
+- **Privilege escalation found and fixed:** legacy unscoped credentials previously implicitly passed `monitor.diagnostic.read` and `monitor.diagnostic.respond` because the legacy allowlist only excluded old capabilities. New diagnostic capabilities are now explicitly excluded from legacy access. Regression test confirms both denied while existing button capability remains unchanged.
+- Isolated diagnostic/packaging suite at HEAD a4016a8: **10 passed in 2.43s**. GitHub Actions workflow 42561108946 was still running when inspected; latest CI is not yet verified green.
+- Trust boundary: build SHA and DOM values are TV-client assertions, even over authenticated WSS; local IPK sidecar SHA-256 verifies artifact integrity, not installed TV bytes. No merge or deployment until review and real TV acceptance.
