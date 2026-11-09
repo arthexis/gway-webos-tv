@@ -4,6 +4,8 @@
   var credential = localStorage.getItem('gway.monitor.credential') || '';
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0;
+  var buildIdentity = null;
+  try { var buildRequest = new XMLHttpRequest(); buildRequest.open('GET', 'gway-build.json', false); buildRequest.send(); if (buildRequest.status === 200 || buildRequest.status === 0) buildIdentity = JSON.parse(buildRequest.responseText); } catch (_) { buildIdentity = null; }
   var retryJobs = {}, retryTimer = null;
   function send(message) { if (!ready || !socket || socket.readyState !== WebSocket.OPEN) return false; socket.send(JSON.stringify(message)); return true; }
   window.GwayMonitorChannels.deployments.setRetry(function (name) {
@@ -80,8 +82,13 @@
       }
       if (msg.type === 'paired' || msg.type === 'ready') {
         ready = true; showConnection('Connected'); dialog.close();
+        send({type:'monitor.diagnostic.register'});
         request(); poll = setInterval(request, 10000);
       } else if (msg.type === 'monitor.snapshot') render(msg);
+      else if (msg.type === 'monitor.diagnostic.request') {
+        var evidence = window.GwayMonitorDiagnostic.evidence(msg, buildIdentity, Date.now());
+        if (evidence) send(evidence);
+      }
       else if (msg.type === 'deployment.retry.started' || msg.type === 'deployment.retry.running') {
         if (typeof msg.name === 'string') { retryJobs[msg.name] = true; channels.filter(function (c) { return c.id === 'deployments'; })[0].retryState(msg.name, 'running'); }
       } else if (msg.type === 'deployment.retry.result') {
