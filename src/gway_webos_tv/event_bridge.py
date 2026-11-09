@@ -85,6 +85,9 @@ class Bridge:
         self.monitor_cached_at = 0
         self.deploy_jobs = {}
         self.deploy_lock = asyncio.Lock()
+        self.diagnostic_tv = None
+        self.diagnostic_pending = None
+        self.diagnostic_lock = asyncio.Lock()
 
     async def monitor(self):
         async with self.monitor_lock:
@@ -221,7 +224,7 @@ class Bridge:
                     if not isinstance(scoped, dict):
                         scoped = {}
                     scoped[session_digest] = (
-                        ["monitor.read", "deployment.retry"] if app == "gway-monitor" else ["button.pressed"]
+                        ["monitor.read", "deployment.retry", "monitor.diagnostic.respond"] if app == "gway-monitor" else ["button.pressed"]
                     )
                     write_private(
                         self.directory / "credential.json",
@@ -256,6 +259,61 @@ class Bridge:
                     await ws.close(1008, "Credential revoked")
                     return
                 data = json.loads(raw)
+                if isinstance(data, dict) and data.get("type") == "monitor.diagnostic.register":
+                    if not self.authorized(session_digest, "monitor.diagnostic.respond"):
+                        await ws.close(1008, "Capability denied")
+                        return
+                    self.diagnostic_tv = ws
+                    continue
+                if isinstance(data, dict) and data.get("type") == "monitor.diagnostic.request":
+                    if not self.authorized(session_digest, "monitor.diagnostic.read"):
+                        await ws.close(1008, "Capability denied")
+                        return
+                    if data.get("repository") != "arthexis/gway-agent-ops":
+                        await ws.close(1008, "Unsupported diagnostic")
+                        return
+                    async with self.diagnostic_lock:
+                        tv = self.diagnostic_tv
+                        if tv is None or tv is ws:
+                            await ws.send(json.dumps({"type": "monitor.diagnostic.unavailable"}))
+                            continue
+                        nonce = secrets.token_hex(16)
+                        future = asyncio.get_running_loop().create_future()
+                        self.diagnostic_pending = (nonce, tv, future)
+                        try:
+                            await tv.send(json.dumps({"type": "monitor.diagnostic.request", "nonce": nonce,
+                                "expires_at": int(time.time() * 1000) + 5000,
+                                "repository": "arthexis/gway-agent-ops"}))
+                            try:
+                                result = await asyncio.wait_for(future, timeout=5)
+                            except asyncio.TimeoutError:
+                                result = {"type": "monitor.diagnostic.unavailable"}
+                            await ws.send(json.dumps(result))
+                        finally:
+                            self.diagnostic_pending = None
+                    continue
+                if isinstance(data, dict) and data.get("type") == "monitor.diagnostic.result":
+                    pending = self.diagnostic_pending
+                    if (not self.authorized(session_digest, "monitor.diagnostic.respond")
+                        or pending is None or pending[1] is not ws
+                        or data.get("nonce") != pending[0] or len(raw) > 1024):
+                        await ws.close(1008, "Invalid diagnostic response")
+                        return
+                    card = data.get("card")
+                    if (not isinstance(card, (dict, type(None)))
+                        or (card is not None and (card.get("repository") != "arthexis/gway-agent-ops"
+                        or card.get("badge") not in ("Installed", "Unknown", "Healthy", "Failed", "Updating", "Degraded", "Outdated")
+                        or card.get("aria_label") != card.get("badge")))
+                        or not re.fullmatch(r"[0-9a-f]{40}", str(data.get("git_sha", "")))
+                        or not isinstance(data.get("build_id"), str)
+                        or len(data["build_id"]) > 64
+                        or data.get("channel") != "deployments"
+                        or data.get("visible") is not True):
+                        await ws.close(1008, "Invalid diagnostic evidence")
+                        return
+                    if not pending[2].done():
+                        pending[2].set_result(data)
+                    continue
                 if isinstance(data, dict) and data.get("type") == "monitor.read":
                     if not self.authorized(session_digest, "monitor.read"):
                         await ws.close(1008, "Capability denied")
