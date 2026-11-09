@@ -84,3 +84,24 @@ Workflow **42561263560** for `63c21b3134e0cd8a1e07fcfba9a6557338470b04` complete
 - WSS scope, nonce, replay, expiry, disconnect and concurrency have automated tests; read-only diagnostics cannot trigger deployment. Operator read access and TV responder permission must be separately provisioned.
 - A credential compromise or malicious TV client can fabricate DOM and build identity; nonce/session correlation does not make the client trustworthy. Do not interpret the badge as proof of the installed IPK.
 - **CI: PASS. Protocol automated tests: PASS. Actual TV DOM: NOT TESTED. Exact installed IPK SHA: NOT VERIFIABLE with current evidence. Merge readiness: HOLD / DRAFT.** No merge or deployment authorized.
+
+## Public webOS installation receipt research (read-only, 2026-11-09)
+
+**CI:** workflow 42561412092 for commit `00e0953cd2c1710945f64c1f3cb75a70b233cd8a` was **queued** at the first check; do not treat as passed without a terminal result.
+
+### Documented read-only interfaces
+
+- LG webOS TV CLI `ares-install --device DEVICE --listfull` enumerates installed app metadata; its public CLI documentation does **not** specify an IPK SHA-256 digest or an authenticated install receipt. Source: https://webostv.developer.lge.com/develop/tools/webos-tv-cli-dev-guide
+- webOS OSE `com.webos.service.applicationmanager/getAppInfo`, `getAppStatus`, `listApps` and `getAppBasePath` report appinfo metadata, presence, status and path, not an IPK digest. OSE API availability does not prove that the same method is callable on consumer LG webOS TV. Source: https://www.webosose.org/docs/reference/ls2-api/com-webos-service-applicationmanager/
+- webOS OSE `com.webos.appInstallService/status` and installation progress report package ID, install path, progress and a `verified` boolean. The documented `details` schema does **not** contain `sha256`, `ipk_sha256`, a signed receipt, or an immutable installed-artifact identifier. Its `verified` field refers to app-server verification, not equivalence to a specific locally built IPK. Source: https://www.webosose.org/docs/reference/ls2-api/com-webos-appinstallservice/
+
+**Finding:** No publicly documented, post-install, read-only API found that cryptographically binds the exact installed IPK SHA-256 to `com.arthexis.gway.monitor`. This is a bounded documentation finding, **not** proof that vendor-private APIs cannot exist. No live device was queried or modified.
+
+### Minimal future attestation mechanism (separate scope, not implemented)
+
+1. During a **separately authorized** install, compute the IPK SHA-256 on the build host, pin the immutable artifact and its app ID/version, and capture an installer success event bound to that artifact and the paired device identity. Store a durable, append-only receipt on the trusted host with device identity, app ID, package digest, install completion time, tool/version, and unique request ID.
+2. For later read-only verification, obtain device-side evidence of the currently installed package identity/revision using a **documented, authenticated and authorized** API. Match it to the receipt and reject missing, replaced, or ambiguous installations. If the TV cannot return an authenticated installed package digest or comparable immutable identifier, this remains **operational provenance**, not cryptographic proof of installed bytes.
+3. A stronger solution would require a trusted package manager to persist and authenticate the exact installed IPK digest and expose a read-only receipt bound to device identity, app ID, and installation generation. Do not emulate this by trusting the web app's own `gway-build.json`, WSS DOM response, or the host-side sidecar.
+4. Keep the existing WSS DOM diagnostic independent: its nonce/TTL/session proves a fresh response from an authorized client, **not** independent package attestation.
+
+**Acceptance:** public installed-IPK digest receipt NOT FOUND; exact installed SHA NOT VERIFIABLE with documented interfaces; PR #33 remains DRAFT, no deployment/merge.
