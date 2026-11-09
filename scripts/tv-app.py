@@ -2,6 +2,7 @@
 """Package a webOS app and optionally install or launch it on a paired TV."""
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -136,6 +137,10 @@ def load_manifest(source):
 def stage_app(source, staged, manifest, config):
     shutil.copytree(source, staged)
     (staged / "manifest.json").unlink()
+    revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    if not re.fullmatch(r'[0-9a-f]{40}', revision):
+        raise ValueError('Invalid source revision')
+    (staged / 'gway-build.json').write_text(json.dumps({'schema': 1, 'git_sha': revision, 'build_id': revision[:16]}, sort_keys=True) + '\n')
     icon_spec = importlib.util.spec_from_file_location("launcher_icons", ROOT / "scripts/launcher_icons.py")
     icon_module = importlib.util.module_from_spec(icon_spec)
     icon_spec.loader.exec_module(icon_module)
@@ -255,6 +260,9 @@ def main():
                 else:
                     with package.open("rb") as source_file, destination.open("xb") as output:
                         shutil.copyfileobj(source_file, output)
+            digest = hashlib.sha256(destination.read_bytes()).hexdigest()
+            sidecar = destination.with_name(destination.name + '.sha256.json')
+            sidecar.write_text(json.dumps({'schema': 1, 'app_id': app_id, 'version': version, 'git_sha': subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip(), 'ipk_sha256': digest}, sort_keys=True) + '\n')
             print(f"Package: {destination}")
             if args.install:
                 command("ares-install", "--device", args.device, destination)
