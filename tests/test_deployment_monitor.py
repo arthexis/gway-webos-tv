@@ -41,3 +41,21 @@ def test_nonresident_without_verified_release_is_not_verified(monkeypatch):
         }}]
     })
     assert deployment_monitor.snapshot()['components'][0]['verified_release'] is False
+
+
+def test_bastion_staged_not_activated(monkeypatch):
+    sha = 'a' * 40
+    monkeypatch.setattr(deployment_monitor, 'read_json', lambda argv: {
+        'components': [{'name': 'gway-bastion', 'installed_sha': None,
+                        'deployment_evidence': {
+                            'repository': 'arthexis/gway-bastion',
+                            'installation_state': 'staged',
+                            'staged_revision': sha,
+                            'activated_revision': None,
+                            'runtime_state': 'not_applicable',
+                            'evidence': ['verified_staged_release']}}]})
+    item = deployment_monitor.snapshot()['components'][0]
+    assert item['installation'] == 'staged'
+    assert item['staged_revision'] == sha
+    assert item['revision'] is None
+    assert item['verified_release'] is False
