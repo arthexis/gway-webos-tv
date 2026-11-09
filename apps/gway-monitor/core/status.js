@@ -16,6 +16,7 @@
     var install = norm(item.installation), health = norm(item.health);
     if (item.error || ['failed','error','failure'].indexOf(install) !== -1 ||
         ['failed','error','unhealthy','dead'].indexOf(health) !== -1) return result('failed', 'Failed');
+    if (install === 'staged' && item.name === 'gway-bastion' && !item.revision && /^[0-9a-f]{40}$/.test(item.staged_revision || '')) return result('draft', 'Staged');
     if (['installing','deploying','updating','pending','running'].indexOf(install) !== -1) return result('pending', 'Updating');
     if (['degraded','warning'].indexOf(health) !== -1) return result('degraded', 'Degraded');
     // Only show 'outdated' when the collector supplies explicit comparable revisions.
