@@ -20,8 +20,11 @@ The fixed workload fast-forwards a clean trusted checkout at
 
 The TV installer uses the existing paired `lab-tv` developer profile
 and private local WSS build configuration. When port 3000 or 9922 is
-unreachable, TV installation is skipped **without failing the node
-deployment**. When online, pairing/model/certificate verification and
+unreachable, TV installation is deferred **without failing the node
+deployment**. The runner must not consider such a deferment a completed
+TV installation; it retries when connectivity returns. The opt-in
+`--require-online` mode exits with code 10 for unavailable TV/developer
+ports, while direct standalone invocation preserves code 0 on skip. When online, pairing/model/certificate verification and
 installation of all manifest-discovered applications are mandatory.
 An online verification, package or installation failure is a real
 failure.
