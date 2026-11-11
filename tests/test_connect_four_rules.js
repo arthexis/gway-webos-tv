@@ -106,3 +106,35 @@ test('draw on full board with no winner; terminal board wins take priority over 
   assert.equal(game.legalColumns(last.board).length, 0);
   assert.equal(game.restartAfterTerminal(last).turn, 'red');
 });
+
+test('Yellow can win vertically on its fourth turn', () => {
+  const s = moves([0,3,0,3,1,3,1,3]);
+  assert.equal(s.status, 'won');
+  assert.equal(s.winner, 'yellow');
+  assert.deepEqual(s.winningLine, [2,3,4,5].map(row => ({row, column:3})));
+});
+
+test('both diagonal wins can arise from legal alternating gravity moves', () => {
+  const downRight = moves([5,2,2,4,3,1,4,3,3,2,2]);
+  assert.equal(downRight.status, 'won');
+  assert.equal(downRight.winner, 'red');
+  assert.equal(Math.abs(downRight.winningLine[0].row-downRight.winningLine[3].row), 3);
+  assert.equal(Math.abs(downRight.winningLine[0].column-downRight.winningLine[3].column), 3);
+  const downLeft = moves([0,0,6,2,0,2,2,3,6,3,5,1,1,2,1,6,4,4,2,6,5,5]);
+  assert.equal(downLeft.status, 'won');
+  assert.equal(downLeft.winner, 'yellow');
+  assert.equal(Math.abs(downLeft.winningLine[0].row-downLeft.winningLine[3].row), 3);
+  assert.equal(Math.abs(downLeft.winningLine[0].column-downLeft.winningLine[3].column), 3);
+});
+
+test('a winning move on the 42nd cell reports win rather than draw', () => {
+  const board = boardFromRows([
+    '.RRRRRY', 'YYRRYYR', 'RRYYRRY', 'YYRRYYR', 'RRYYRRY', 'YYRRYYR'
+  ]);
+  const previous = {...game.createGame(), board, turn:'red'};
+  const last = game.applyMove(previous, 0);
+  assert.equal(last.status, 'won');
+  assert.equal(last.winner, 'red');
+  assert.equal(last.winningLine.length, 4);
+  assert.equal(game.legalColumns(last.board).length, 0);
+});
