@@ -37,6 +37,16 @@ remote_sha=$(git -C "$ROOT" rev-parse refs/remotes/origin/main)
 [ "$local_sha" = "$remote_sha" ] || {
     echo "Checkout differs from origin/main; fast-forward main before deploying." >&2; exit 2;
 }
+# The runner pins the reviewed CI SHA; never silently deploy a newer branch tip.
+expected_sha=${GWAY_WEBOS_EXPECTED_SHA:-}
+if [ -n "$expected_sha" ]; then
+    case "$expected_sha" in
+        *[!0-9a-f]*|'') echo "Invalid expected SHA" >&2; exit 2 ;;
+    esac
+    [ "${#expected_sha}" -eq 40 ] && [ "$expected_sha" = "$local_sha" ] || {
+        echo "CI-gated SHA differs from checkout" >&2; exit 2;
+    }
+fi
 config="$HOME/.config/gway-webos-tv/deploy.env"
 [ -f "$config" ] && [ ! -L "$config" ] || {
     echo "Missing private deploy configuration: $config" >&2; exit 2;
@@ -69,7 +79,12 @@ if [ "$current" = "$release_key" ] &&
 fi
 started=$(date +%s)
 ansible-playbook "$ROOT/ansible/deploy.yml" -i 'gway_tv,' -c local \
-    -e "gway_webos_bridge_listen=$listen"
+    -e "gway_webos_bridge_listen=$listen" \
+    -e "gway_webos_expected_sha=$local_sha" \
+    -e "gway_webos_activate=true"
+[ "$(git -C "$ROOT" rev-parse HEAD)" = "$local_sha" ] || {
+    echo "Checkout changed during Ansible; refusing deployment receipt" >&2; exit 2;
+}
 # A marker is only written after Ansible's post-install checks succeed.
 temp="$state_dir/.deployed.sha.$$"
 (umask 077; printf '%s\n' "$release_key" > "$temp")
