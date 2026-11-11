@@ -32,6 +32,9 @@ assert.equal(chip.children.length,2);
 assert.equal(chip.children[1].textContent,'Health: '+malicious);
 assert.equal(chip.className,'tv-chip status-unknown');
 assert.equal(s.chip('CI','passed','attacker-css').className,'tv-chip status-unknown');
+const open=s.chip('State','Open','open');
+assert.equal(open.className,'tv-chip status-open');
+assert.equal(open.children[0].textContent,'○');
 """
     run = subprocess.run(["node", "-e", code, str(APP / "core/status.js")],
                          capture_output=True, text=True, timeout=10)

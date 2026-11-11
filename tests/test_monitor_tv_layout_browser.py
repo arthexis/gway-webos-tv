@@ -75,6 +75,11 @@ def test_responsive_layout_and_remote_controls(tmp_path, width, height):
         assert page.locator("#pr-list .tv-chip").count() == 9
         assert page.locator("#pr-list [aria-label='CI: failed']").count() == 1
         assert page.locator("#pr-list [aria-label='Merge: BLOCKED']").count() == 1
+        # 'Open' is a neutral lifecycle label, not a green 'passed' indicator.
+        open_chip = page.locator("#pr-list [aria-label='State: Open']")
+        assert open_chip.count() == 1
+        assert "status-open" in open_chip.get_attribute("class")
+        assert "status-passed" not in open_chip.get_attribute("class")
         for card in page.locator("#pr-list .github-card").all():
             rect = card.bounding_box()
             assert rect["x"] >= 0 and rect["x"] + rect["width"] <= width + 1
@@ -117,6 +122,26 @@ def test_responsive_layout_and_remote_controls(tmp_path, width, height):
                                ("ArrowLeft", 2), ("ArrowUp", 0)):
                 page.keyboard.press(key)
                 assert selected(page) == index
+            page.keyboard.press("ArrowRight")
+            assert selected(page) == 1
+            page.keyboard.press("ArrowUp")
+            assert selected(page) == 1, "Up from top-right must not jump left"
+            page.keyboard.press("ArrowDown")
+            page.keyboard.press("ArrowDown")
+            assert selected(page) == 5
+            page.keyboard.press("ArrowDown")
+            assert selected(page) == 5, "No lower-right cell in an odd final row"
+            page.keyboard.press("ArrowLeft")
+            assert selected(page) == 4
+            page.keyboard.press("ArrowDown")
+            assert selected(page) == 6
+            page.keyboard.press("ArrowRight")
+            assert selected(page) == 6, "No right-hand cell in final row"
+            page.keyboard.press("ArrowUp")
+            page.keyboard.press("ArrowUp")
+            assert selected(page) == 2
+            page.keyboard.press("ArrowUp")
+            assert selected(page) == 0
         else:
             for key, index in (("ArrowRight", 0), ("ArrowDown", 1), ("ArrowUp", 0)):
                 page.keyboard.press(key)

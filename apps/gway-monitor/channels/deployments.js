@@ -46,6 +46,10 @@
     if (code === 37 && two && selected % 2 === 1) next--;
     if (code === 39 && two && selected % 2 === 0 && selected + 1 < list.length) next++;
     if ((code === 37 || code === 39) && !two) return false;
+    // A partial final row has no corresponding cell in the other row.
+    // Clamping ±2 to the list endpoint would move diagonally between columns.
+    if (two && (code === 38 || code === 40) &&
+        (next < 0 || next >= list.length)) next = selected;
     next = Math.max(0, Math.min(list.length - 1, next));
     // Don't wrap into the next row via the right arrow.
     selected = next;

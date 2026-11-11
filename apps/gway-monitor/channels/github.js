@@ -54,7 +54,7 @@
       title.textContent = pr.title || 'Untitled pull request';
       var indicators = document.createElement('div');
       indicators.className = 'tv-chip-row';
-      indicators.appendChild(status.chip('State', pr.draft ? 'Draft' : 'Open', pr.draft ? 'draft' : 'passed'));
+      indicators.appendChild(status.chip('State', pr.draft ? 'Draft' : 'Open', pr.draft ? 'draft' : 'open'));
       indicators.appendChild(status.chip('CI', pr.ci || 'unknown', status.signal('ci', pr.ci)));
       indicators.appendChild(status.chip('Merge', pr.merge || 'unknown', status.signal('merge', pr.merge)));
       card.appendChild(heading);
