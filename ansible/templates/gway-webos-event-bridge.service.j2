@@ -6,6 +6,9 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+# Optional private, user-owned paths to the Watchtower read-only credentials.
+# Do not provision an OAuth token in a committed unit or template.
+EnvironmentFile=-{{ ansible_user_dir }}/.config/gway-webos-tv/fleet.env
 ExecStart={{ gway_webos_repo }}/.venv/bin/python {{ gway_webos_repo }}/scripts/event-bridge.py --listen {{ gway_webos_bridge_listen }} --port {{ gway_webos_bridge_port }} --cert {{ gway_webos_tls_dir }}/cert.pem --key {{ gway_webos_tls_dir }}/key.pem
 Restart=on-failure
 RestartSec=15
