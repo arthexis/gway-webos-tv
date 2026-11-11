@@ -44,7 +44,8 @@ jobs:
           ansible-playbook -i 'gway_tv,' -c local ansible/deploy.yml --syntax-check
   ui:
     name: Offline TV browser (1920 / 960)
-    runs-on: ubuntu-latest
+    # Playwright's tested browser bundle is not available for ubuntu-26.04 yet.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
