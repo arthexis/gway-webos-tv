@@ -24,7 +24,8 @@ assert.equal(s.signal('merge','CLEAN'),'passed');
 assert.equal(s.signal('merge','BLOCKED'),'failed');
 assert.equal(s.signal('merge','BEHIND'),'pending');
 assert.equal(s.signal('installation','staged'),'degraded');
-assert.equal(s.signal('health','not_applicable'),'unknown');
+assert.equal(s.signal('health','not_applicable'),'na');
+assert.equal(s.signal('health','unknown'),'unknown');
 const malicious='<img src=x onerror=alert(1)>';
 const chip=s.chip('Health',malicious,'unknown');
 assert.equal(chip.attrs['aria-label'],'Health: '+malicious);
@@ -35,6 +36,10 @@ assert.equal(s.chip('CI','passed','attacker-css').className,'tv-chip status-unkn
 const open=s.chip('State','Open','open');
 assert.equal(open.className,'tv-chip status-open');
 assert.equal(open.children[0].textContent,'○');
+const idle=s.chip('Retry','Not needed','idle');
+assert.equal(idle.className,'tv-chip status-idle');
+assert.equal(idle.children[0].textContent,'–');
+assert.equal(s.chip('Health','not_applicable','na').children[0].textContent,'–');
 """
     run = subprocess.run(["node", "-e", code, str(APP / "core/status.js")],
                          capture_output=True, text=True, timeout=10)

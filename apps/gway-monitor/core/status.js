@@ -26,7 +26,7 @@
         item.runtime_required === false && item.verified_release === true) return result('passed', 'Installed');
     return result('unknown', 'Unknown');
   }
-  var symbols = {passed:'✓',failed:'×',pending:'↻',draft:'✎',open:'○',outdated:'↓',degraded:'!',unknown:'?'};
+  var symbols = {passed:'✓',failed:'×',pending:'↻',draft:'✎',open:'○',na:'–',idle:'–',outdated:'↓',degraded:'!',unknown:'?'};
   function badge(state) {
     var node = document.createElement('div');
     node.className = 'status-badge status-' + state.level;
@@ -41,7 +41,7 @@
   // Small independent indicators keep each state visible without conflating
   // Draft, CI and mergeability (or installation, health and retry).
   function chip(label, raw, level) {
-    var allowed = {passed:1, failed:1, pending:1, draft:1, open:1, unknown:1, degraded:1, outdated:1};
+    var allowed = {passed:1, failed:1, pending:1, draft:1, open:1, na:1, idle:1, unknown:1, degraded:1, outdated:1};
     var tone = allowed[level] ? level : 'unknown';
     var shown = (raw === null || raw === undefined || String(raw).trim() === '') ? 'unknown' : String(raw);
     var node = document.createElement('span');
@@ -76,6 +76,7 @@
       if (['installing','deploying','updating','pending','running'].indexOf(word) !== -1) return 'pending';
       if (word === 'staged') return 'degraded';
     } else if (group === 'health') {
+      if (word === 'notapplicable') return 'na';
       if (['healthy','active','running','ok','success'].indexOf(word) !== -1) return 'passed';
       if (['failed','error','unhealthy','dead'].indexOf(word) !== -1) return 'failed';
       if (['degraded','warning'].indexOf(word) !== -1) return 'degraded';

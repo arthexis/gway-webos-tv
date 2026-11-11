@@ -104,7 +104,11 @@ def test_responsive_layout_and_remote_controls(tmp_path, width, height):
         assert cards.first.locator(".deployment-sha").get_attribute("data-full-revision") == "a" * 40
         assert cards.first.locator(".deployment-full-revision").is_visible()
         assert "preserve the complete error" in cards.nth(1).locator(".deployment-error").inner_text()
-        assert cards.nth(6).locator("[aria-label='Health: not_applicable']").count() == 1
+        na_chip = cards.nth(6).locator("[aria-label='Health: not_applicable']")
+        assert na_chip.count() == 1
+        assert "status-na" in na_chip.get_attribute("class")
+        idle_chip = cards.first.locator("[aria-label='Retry: Not needed']")
+        assert "status-idle" in idle_chip.get_attribute("class")
         assert all(card.locator(".tv-chip").count() == 3 for card in cards.all())
         # All seven compact cards fit at full-HD without obscuring the fixed footer.
         if width >= 1200:

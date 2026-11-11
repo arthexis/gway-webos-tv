@@ -107,7 +107,7 @@
       indicators.appendChild(status.chip('Health', item.health || 'unknown', status.signal('health', item.health)));
       var overall = status.deployment(item).level;
       var retryLabel = active[item.name] ? 'Running' : errors[item.name] ? 'Failed' : overall === 'failed' ? 'Available (OK)' : 'Not needed';
-      indicators.appendChild(status.chip('Retry', retryLabel, active[item.name] ? 'pending' : errors[item.name] ? 'failed' : overall === 'failed' ? 'pending' : 'unknown'));
+      indicators.appendChild(status.chip('Retry', retryLabel, active[item.name] ? 'pending' : errors[item.name] ? 'failed' : overall === 'failed' ? 'pending' : 'idle'));
       card.appendChild(name); card.appendChild(details); card.appendChild(full); card.appendChild(date); card.appendChild(indicators);
       if (item.error || errors[item.name]) {
         var errorText = document.createElement('p');

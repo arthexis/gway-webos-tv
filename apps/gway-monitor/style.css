@@ -65,7 +65,7 @@ main>section .grid{padding-bottom:8px}
 .tv-chip.status-passed {color:#84e9c4;border-color:#3b796d}
 .tv-chip.status-failed {color:#ff9393;border-color:#9e5a65}
 .tv-chip.status-pending {color:#9aceff;border-color:#4773a2}
-.tv-chip.status-draft,.tv-chip.status-open,.tv-chip.status-unknown {color:#c5d1df}
+.tv-chip.status-draft,.tv-chip.status-open,.tv-chip.status-na,.tv-chip.status-idle,.tv-chip.status-unknown {color:#c5d1df}
 .tv-chip.status-degraded,.tv-chip.status-outdated {color:#f7cb7b;border-color:#987d4f}
 
 /* Two cards per row only where there is comfortable real TV width. */
