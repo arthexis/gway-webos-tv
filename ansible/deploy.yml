@@ -10,6 +10,8 @@
     gway_webos_bridge_port: 8769
     gway_webos_bridge_listen: ""
     gway_webos_install_ocr: true
+    gway_webos_expected_sha: ""
+    gway_webos_activate: false
   tasks:
     - name: Require a configured WireGuard listener address
       ansible.builtin.assert:
@@ -53,6 +55,123 @@
         update: true
         force: false
       register: gway_webos_checkout
+
+    # The runner has already fast-forwarded main, so git.changed can be false
+    # even when this is the first activation of the new release.
+    - name: Read post-checkout SHA
+      ansible.builtin.command:
+        argv: [git, -C, "{{ gway_webos_repo }}", rev-parse, --verify, HEAD]
+      register: gway_webos_actual_sha
+      changed_when: false
+      when: gway_webos_expected_sha | length > 0
+
+    - name: Fail closed when main advances beyond the CI-gated SHA
+      ansible.builtin.assert:
+        that:
+          - gway_webos_expected_sha is match('^[0-9a-f]{40}
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_user_dir }}/.local/bin/uv"
+          - venv
+          - "{{ gway_webos_repo }}/.venv"
+      args:
+        creates: "{{ gway_webos_repo }}/.venv/bin/python"
+
+    - name: Check installed bridge dependency
+      ansible.builtin.command:
+        argv:
+          - "{{ gway_webos_repo }}/.venv/bin/python"
+          - -c
+          - "import gway_webos_tv, websockets, bscpylgtv"
+      register: gway_webos_venv_ready
+      changed_when: false
+      failed_when: false
+
+    - name: Install bridge dependencies from checked-out source
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_user_dir }}/.local/bin/uv"
+          - pip
+          - install
+          - --python
+          - "{{ gway_webos_repo }}/.venv/bin/python"
+          - -e
+          - "{{ gway_webos_repo }}"
+      when: (gway_webos_activate | bool) or gway_webos_checkout.changed or gway_webos_venv_ready.rc != 0
+
+    - name: Check user-local TV executable
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/.local/bin/tv"
+      register: gway_webos_tv_bin
+
+    - name: Install both TV CLI entrypoints and man pages
+      ansible.builtin.command:
+        argv:
+          - bash
+          - "{{ gway_webos_repo }}/scripts/install.sh"
+      environment:
+        PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
+      when: (gway_webos_activate | bool) or gway_webos_checkout.changed or not gway_webos_tv_bin.stat.exists
+
+    - name: Create user service directory
+      ansible.builtin.file:
+        path: "{{ gway_webos_unit_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Install user service with existing WireGuard and TLS endpoints
+      ansible.builtin.template:
+        src: templates/gway-webos-event-bridge.service.j2
+        dest: "{{ gway_webos_unit_dir }}/gway-webos-event-bridge.service"
+        mode: "0644"
+      register: gway_webos_service
+
+    - name: Enable and start the event bridge in the user's systemd manager
+      ansible.builtin.systemd_service:
+        name: gway-webos-event-bridge.service
+        scope: user
+        enabled: true
+        state: restarted
+        daemon_reload: true
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
+      when: (gway_webos_activate | bool) or gway_webos_checkout.changed or gway_webos_service.changed
+
+    - name: Ensure event bridge is enabled and running
+      ansible.builtin.systemd_service:
+        name: gway-webos-event-bridge.service
+        scope: user
+        enabled: true
+        state: started
+      environment:
+        XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
+
+    - name: Verify installed TV command
+      ansible.builtin.command:
+        argv:
+          - "{{ ansible_user_dir }}/.local/bin/tv"
+          - --help
+      changed_when: false
+
+    - name: Verify network monitor dependency
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/gway-remote
+          - network
+          - --json
+      register: gway_webos_network
+      changed_when: false
+
+    - name: Check network contract schema
+      ansible.builtin.assert:
+        that:
+          - (gway_webos_network.stdout | from_json).schema == 'gway-remote/network/v1'
+
+    - name: Converge node-owned WebOS MCP provider with installation
+      ansible.builtin.include_tasks: tasks/webos-mcp.yml
+)
+          - gway_webos_actual_sha.stdout == gway_webos_expected_sha
+      when: gway_webos_expected_sha | length > 0
 
     - name: Create local virtual environment
       ansible.builtin.command:
