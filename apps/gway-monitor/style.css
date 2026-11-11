@@ -69,24 +69,24 @@ main>section .grid{padding-bottom:8px}
 .tv-chip.status-degraded,.tv-chip.status-outdated {color:#f7cb7b;border-color:#987d4f}
 
 /* Two cards per row only where there is comfortable real TV width. */
-#deployments #deployment-list {grid-template-columns:minmax(0,1fr);gap:12px}
+#deployments #deployment-list {grid-template-columns:minmax(0,1fr);gap:9px}
 #deployments .deployment-card {
-  display:block;grid-column:auto;min-width:0;min-height:166px;
-  padding:12px 18px 13px;
+  display:block;grid-column:auto;min-width:0;min-height:154px;
+  padding:10px 18px 11px;
 }
 #deployments .deployment-name {
   color:#f1f7fb;font-weight:700;font-size:30px;line-height:1.12;
-  margin:0 0 7px;overflow-wrap:anywhere;
+  margin:0 0 5px;overflow-wrap:anywhere;
 }
 #deployments .deployment-revision {display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 10px;
   color:#c4d5df;font-size:19px;line-height:1.2}
 #deployments .deployment-sha {color:#87def3;font:600 19px/1.2 monospace;overflow-wrap:anywhere}
-#deployments .deployment-date {font-size:19px;line-height:1.2;color:#c1d3e0;margin:5px 0 9px}
+#deployments .deployment-date {font-size:19px;line-height:1.2;color:#c1d3e0;margin:4px 0 6px}
 #deployments .tv-chip {font-size:17px;padding:4px 8px;gap:5px}
 #deployments .tv-chip-icon {width:19px;height:19px;flex-basis:19px;font-size:17px}
 #deployments .deployment-full-revision {
   display:none;font-size:17px;line-height:1.2;color:#b7cbd9;
-  margin:4px 0;overflow-wrap:anywhere;word-break:break-word;
+  margin:2px 0;overflow-wrap:anywhere;word-break:break-word;
 }
 #deployments .deployment-card.selected-card .deployment-full-revision {display:block}
 #deployments .deployment-error {
@@ -105,3 +105,8 @@ main>section .grid{padding-bottom:8px}
   #github .github-card {padding:12px 16px}
   #deployments .deployment-card {padding:11px 15px}
 }
+
+/* Counts and pairing hints may not run together at the fixed TV footer. */
+footer {display:flex;align-items:center;justify-content:space-between;gap:16px}
+#channel-count {min-width:0;overflow-wrap:anywhere}
+#reconnect-hint {flex:0 0 auto;white-space:nowrap}
