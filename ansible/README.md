@@ -17,10 +17,15 @@ chmod 600 ~/.config/gway-webos-tv/deploy.env
 ```
 
 The root `deploy.sh` is the canonical local entrypoint, like OCPP CSMS.
-It refuses root, non-main or dirty checkouts, and a stale checkout relative
-to `origin/main`; serializes runs with a persistent owner lock; and skips
-Ansible entirely when the deployed SHA and listener match and the service
-and CLI pass readiness checks. The successful deployment marker is written
+It refuses root, non-main or dirty checkouts, a stale checkout relative
+to `origin/main`, and any CI-gated revision mismatch (when
+`GWAY_WEBOS_EXPECTED_SHA` is provided); serializes runs with a persistent owner
+lock; and skips Ansible entirely when the deployed SHA and listener match
+and the service and CLI pass readiness checks. When activation is needed,
+it explicitly requests dependency/CLI refresh and bridge restart regardless
+of whether Ansible's Git task reports a change: the orchestration may have
+already fast-forwarded the checkout. Ansible checks the post-Git checkout
+against the exact expected SHA before installing the new release. The successful deployment marker is written
 only after Ansible succeeds. It never modifies network configuration.
 
 For remote execution, use an inventory group named `gway_tv` with the target

@@ -9,10 +9,14 @@ repository-dispatch event: no cross-repository secret is required.
 On each check, GWay Remote uses the **existing local gh authentication**
 on gway-001 to read `arthexis/gway-webos-tv`'s current `main` SHA
 and its exact-SHA **CI** push run. Only `completed:success` may deploy.
-Pending/failed CI is skipped and retried at the next check. The last
-successfully deployed SHA is recorded under
-`~/.local/state/gway-webos-tv/auto-deployed-sha` to avoid repeated
-installs. Failed deployments do not update this receipt and retry.
+Pending/failed CI is skipped and retried at the next check. The node activation receipt is maintained by `deploy.sh` as
+`~/.local/state/gway-webos-tv/deployed.sha` (SHA and listener).
+The companion GWay Remote fix uses a separate
+`~/.local/state/gway-webos-tv/tv-installed-sha` receipt only after
+successful online TV installation. The old `auto-deployed-sha` is not
+trusted because it could be written when the TV was unreachable.
+CI-gated checks retry pending TV installations without redoing a healthy
+node deployment.
 
 The fixed workload fast-forwards a clean trusted checkout at
 `/home/arthe/Repos/gway-webos-tv`, executes the existing `./deploy.sh`
@@ -20,8 +24,11 @@ The fixed workload fast-forwards a clean trusted checkout at
 
 The TV installer uses the existing paired `lab-tv` developer profile
 and private local WSS build configuration. When port 3000 or 9922 is
-unreachable, TV installation is skipped **without failing the node
-deployment**. When online, pairing/model/certificate verification and
+unreachable, TV installation is deferred **without failing the node
+deployment**. The runner must not consider such a deferment a completed
+TV installation; it retries when connectivity returns. The opt-in
+`--require-online` mode exits with code 10 for unavailable TV/developer
+ports, while direct standalone invocation preserves code 0 on skip. When online, pairing/model/certificate verification and
 installation of all manifest-discovered applications are mandatory.
 An online verification, package or installation failure is a real
 failure.

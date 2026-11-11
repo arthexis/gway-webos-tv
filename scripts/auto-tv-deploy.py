@@ -4,6 +4,7 @@
 Only an unreachable TV/developer port is optional. A reachable but untrusted
 device, failed package or failed installation is a real deployment error.
 """
+import argparse
 import importlib.util
 import json
 import socket
@@ -12,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEVICE = "lab-tv"
+TV_DEFERRED = 10  # Distinct from successful installation; runner must not mark TV complete.
 
 
 def profile_host(home):
@@ -33,15 +35,15 @@ def port_available(host, port, timeout=3):
         return False
 
 
-def run(home=None, cli=None, probe=port_available):
+def run(home=None, cli=None, probe=port_available, require_online=False):
     home = home or Path.home()
     host = profile_host(home)
     if not probe(host, 3000):
-        print("TV unavailable (webOS port 3000); skipping optional TV installation")
-        return 0
+        print("TV unavailable (webOS port 3000); deferring TV installation")
+        return TV_DEFERRED if require_online else 0
     if not probe(host, 9922):
-        print("TV developer SSH unavailable (port 9922); skipping optional TV installation")
-        return 0
+        print("TV developer SSH unavailable (port 9922); deferring TV installation")
+        return TV_DEFERRED if require_online else 0
     if cli is None:
         spec = importlib.util.spec_from_file_location("tv_app", ROOT / "scripts/tv-app.py")
         cli = importlib.util.module_from_spec(spec)
@@ -80,8 +82,14 @@ def run(home=None, cli=None, probe=port_available):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--require-online", action="store_true",
+        help="Exit 10 if TV is offline; used by CI-gated deploy receipts"
+    )
+    args = parser.parse_args()
     try:
-        sys.exit(run())
+        sys.exit(run(require_online=args.require_online))
     except (OSError, ValueError, RuntimeError, KeyError, TypeError) as error:
         print(f"auto-tv-deploy: {error}", file=sys.stderr)
         sys.exit(1)

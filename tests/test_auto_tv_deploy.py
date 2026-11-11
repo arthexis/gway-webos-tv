@@ -28,6 +28,16 @@ def test_unavailable_tv_is_success_and_does_not_attempt_install(tmp_path, ports)
     assert mod.run(home=home, cli=cli, probe=lambda h, p: ports.get(p, False)) == 0
 
 
+@pytest.mark.parametrize("ports", [{}, {3000: True}])
+def test_deferred_tv_does_not_claim_installation(tmp_path, ports):
+    home = home_with_profile(tmp_path)
+    def forbidden(*args):
+        raise AssertionError("No installation while TV is unavailable")
+    cli = SimpleNamespace(verify_device=forbidden, main=forbidden)
+    assert mod.run(home=home, cli=cli, probe=lambda h, p: ports.get(p, False),
+                   require_online=True) == mod.TV_DEFERRED
+
+
 def test_online_tv_installs_both_apps_without_launch(tmp_path):
     home = home_with_profile(tmp_path)
     calls = []

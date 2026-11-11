@@ -10,6 +10,8 @@
     gway_webos_bridge_port: 8769
     gway_webos_bridge_listen: ""
     gway_webos_install_ocr: true
+    gway_webos_expected_sha: ""
+    gway_webos_activate: false
   tasks:
     - name: Require a configured WireGuard listener address
       ansible.builtin.assert:
@@ -54,6 +56,21 @@
         force: false
       register: gway_webos_checkout
 
+    # A pre-fast-forwarded main can leave git.changed=false during activation.
+    - name: Read post-checkout SHA
+      ansible.builtin.command:
+        argv: [git, -C, "{{ gway_webos_repo }}", rev-parse, --verify, HEAD]
+      register: gway_webos_actual_sha
+      changed_when: false
+      when: gway_webos_expected_sha | length > 0
+
+    - name: Refuse checkout drift beyond the CI-gated SHA
+      ansible.builtin.assert:
+        that:
+          - gway_webos_expected_sha is match('^[0-9a-f]{40}$')
+          - gway_webos_actual_sha.stdout == gway_webos_expected_sha
+      when: gway_webos_expected_sha | length > 0
+
     - name: Create local virtual environment
       ansible.builtin.command:
         argv:
@@ -83,7 +100,7 @@
           - "{{ gway_webos_repo }}/.venv/bin/python"
           - -e
           - "{{ gway_webos_repo }}"
-      when: gway_webos_checkout.changed or gway_webos_venv_ready.rc != 0
+      when: (gway_webos_activate | bool) or gway_webos_checkout.changed or gway_webos_venv_ready.rc != 0
 
     - name: Check user-local TV executable
       ansible.builtin.stat:
@@ -97,7 +114,7 @@
           - "{{ gway_webos_repo }}/scripts/install.sh"
       environment:
         PATH: "{{ ansible_user_dir }}/.local/bin:{{ ansible_env.PATH }}"
-      when: gway_webos_checkout.changed or not gway_webos_tv_bin.stat.exists
+      when: (gway_webos_activate | bool) or gway_webos_checkout.changed or not gway_webos_tv_bin.stat.exists
 
     - name: Create user service directory
       ansible.builtin.file:
@@ -139,7 +156,7 @@
         daemon_reload: true
       environment:
         XDG_RUNTIME_DIR: "/run/user/{{ ansible_user_uid }}"
-      when: gway_webos_checkout.changed or gway_webos_service.changed
+      when: (gway_webos_activate | bool) or gway_webos_checkout.changed or gway_webos_service.changed
 
     - name: Ensure event bridge is enabled and running
       ansible.builtin.systemd_service:
