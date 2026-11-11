@@ -44,6 +44,24 @@ tv --help
 gway-remote network --json
 ```
 
+Fleet is optional and uses the existing Watchtower MCP node_list API (not
+a second gateway or an invented fleet_snapshot method). To enable it, provision
+the private user-owned file `~/.config/gway-webos-tv/fleet.env` with mode 0600:
+
+```text
+GWAY_FLEET_MCP_URL=https://YOUR-WATCHTOWER-HOST/mcp
+GWAY_FLEET_TOKEN_FILE=/absolute/path/to/existing/read-only-token
+```
+
+The token itself is never stored in this environment file; it points to an
+existing private token file. No file is created, populated or modified by
+Ansible. Invalid or missing configuration causes Fleet to report
+`unavailable`. After changing the private file, explicitly restart the
+existing user bridge through the approved deployment workflow; changing the
+file alone does not restart systemd. The live node_list contract supplies
+identity and reachability but no CPU/service/deployment telemetry, which stays
+`unknown` rather than being invented.
+
 The existing TV client state, TLS keys, Watchtower pairing credentials, and
 app-build endpoint configuration are preserved. TV app packaging and developer
 mode installation are explicit, separate operations.

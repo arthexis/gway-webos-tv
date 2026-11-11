@@ -105,6 +105,24 @@
         state: directory
         mode: "0755"
 
+    - name: Inspect optional user-owned Fleet configuration without reading credentials
+      ansible.builtin.stat:
+        path: "{{ ansible_user_dir }}/.config/gway-webos-tv/fleet.env"
+        follow: false
+      register: gway_webos_fleet_env
+      no_log: true
+
+    - name: Refuse unsafe optional Fleet configuration
+      ansible.builtin.assert:
+        that:
+          - not (gway_webos_fleet_env.stat.islnk | default(false))
+          - not (gway_webos_fleet_env.stat.exists | default(false)) or
+            (gway_webos_fleet_env.stat.isreg | default(false) and
+             gway_webos_fleet_env.stat.pw_name == ansible_user_id and
+             gway_webos_fleet_env.stat.mode in ['0600', '0400'])
+        fail_msg: "Optional fleet.env must be a private, regular user-owned file."
+      no_log: true
+
     - name: Install user service with existing WireGuard and TLS endpoints
       ansible.builtin.template:
         src: templates/gway-webos-event-bridge.service.j2
