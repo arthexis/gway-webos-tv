@@ -1,0 +1,7 @@
+{
+  "schema": "gway-webos-tv/app-build/v1",
+  "entry": "index.html",
+  "bridge": {
+    "mode": "none"
+  }
+}

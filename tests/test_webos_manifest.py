@@ -30,10 +30,10 @@ def make_app(root, name, bridge="none", entry="index.html"):
 
 
 def test_existing_apps_have_valid_manifests():
-    assert tv.discover_apps() == ["gway-monitor", "remote-test"]
+    assert tv.discover_apps() == ["connect-four", "gway-monitor", "remote-test"]
     for name in tv.discover_apps():
         manifest, meta = tv.load_manifest(ROOT / "apps" / name)
-        assert manifest["bridge"]["mode"] == "inject"
+        assert manifest["bridge"]["mode"] == ("none" if name == "connect-four" else "inject")
         assert meta["main"] == "index.html"
 
 
@@ -101,7 +101,10 @@ def test_cli_all_packages_both_apps(tmp_path, monkeypatch):
         assert tool == "ares-package"
         root, staged = Path(args[1]), Path(args[2])
         assert not (staged / "manifest.json").exists()
-        assert "wss://bridge.example.test" in (staged / "app.js").read_text()
+        if (staged / "app.js").is_file():
+            assert "wss://bridge.example.test" in (staged / "app.js").read_text()
+        else:
+            assert (staged / "game.js").is_file()
         meta = json.loads((staged / "appinfo.json").read_text())
         (root / f"{meta['id']}_{meta['version']}_all.ipk").write_bytes(b"test-ipk")
         calls.append(meta["id"])
@@ -112,8 +115,9 @@ def test_cli_all_packages_both_apps(tmp_path, monkeypatch):
         "tv-app.py", "all", "--config", str(config), "--output-dir", str(out),
     ])
     assert tv.main() == 0
-    assert len(calls) == 2
-    assert len(list(out.glob("*.ipk"))) == 2
+    assert len(calls) == 3
+    assert len(list(out.glob("*.ipk"))) == 3
+    assert set(calls) == {"com.arthexis.gway.connectfour", "com.arthexis.gway.monitor", "com.arthexis.gway.remotetest"}
 
 
 def test_cli_rejects_duplicate_selection(tmp_path, monkeypatch):
