@@ -129,7 +129,7 @@ test('both diagonal wins can arise from legal alternating gravity moves', () => 
 
 test('a winning move on the 42nd cell reports win rather than draw', () => {
   const board = boardFromRows([
-    '.RRRRRY', 'YYRRYYR', 'RRYYRRY', 'YYRRYYR', 'RRYYRRY', 'YYRRYYR'
+    '.RRRYYY', 'YYRRYYR', 'RRYYRRY', 'YYRRYYR', 'RRYYRRY', 'YYRRYYR'
   ]);
   const previous = {...game.createGame(), board, turn:'red'};
   const last = game.applyMove(previous, 0);
