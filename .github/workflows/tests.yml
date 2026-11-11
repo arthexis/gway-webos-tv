@@ -42,16 +42,43 @@ jobs:
         run: |
           python -m pip install ansible-core
           ansible-playbook -i 'gway_tv,' -c local ansible/deploy.yml --syntax-check
+  ui:
+    name: Offline TV browser (1920 / 960)
+    # Playwright's tested browser bundle is not available for ubuntu-26.04 yet.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline browser test dependencies
+        run: |
+          python -m pip install -e '.[dev]' playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Render synthetic UI at two TV resolutions
+        env:
+          GWAY_TV_SCREENSHOT_DIR: test-artifacts/tv-layout
+        run: python -m pytest -q tests/test_monitor_tv_layout_browser.py
+      - name: Retain synthetic comparison screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-monitor-layout
+          path: test-artifacts/tv-layout/*.png
+          retention-days: 7
+          if-no-files-found: warn
   ci:
     name: CI
     if: always()
-    needs: [test, deploy]
+    needs: [test, deploy, ui]
     runs-on: ubuntu-latest
     steps:
       - name: Require successful checks
         env:
           TEST_RESULT: ${{ needs.test.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
+          UI_RESULT: ${{ needs.ui.result }}
         run: |
           test "$TEST_RESULT" = success
           test "$DEPLOY_RESULT" = success
+          test "$UI_RESULT" = success

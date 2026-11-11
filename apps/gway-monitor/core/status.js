@@ -26,7 +26,7 @@
         item.runtime_required === false && item.verified_release === true) return result('passed', 'Installed');
     return result('unknown', 'Unknown');
   }
-  var symbols = {passed:'✓',failed:'×',pending:'↻',draft:'✎',outdated:'↓',degraded:'!',unknown:'?'};
+  var symbols = {passed:'✓',failed:'×',pending:'↻',draft:'✎',open:'○',na:'–',idle:'–',outdated:'↓',degraded:'!',unknown:'?'};
   function badge(state) {
     var node = document.createElement('div');
     node.className = 'status-badge status-' + state.level;
@@ -37,5 +37,52 @@
     node.appendChild(symbol); node.appendChild(label);
     return node;
   }
-  window.GwayMonitorStatus = {github:github, deployment:deployment, badge:badge};
+
+  // Small independent indicators keep each state visible without conflating
+  // Draft, CI and mergeability (or installation, health and retry).
+  function chip(label, raw, level) {
+    var allowed = {passed:1, failed:1, pending:1, draft:1, open:1, na:1, idle:1, unknown:1, degraded:1, outdated:1};
+    var tone = allowed[level] ? level : 'unknown';
+    var shown = (raw === null || raw === undefined || String(raw).trim() === '') ? 'unknown' : String(raw);
+    var node = document.createElement('span');
+    node.className = 'tv-chip status-' + tone;
+    node.setAttribute('role', 'img');
+    node.setAttribute('aria-label', label + ': ' + shown);
+    var mark = document.createElement('span');
+    mark.className = 'tv-chip-icon';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = symbols[tone] || '?';
+    var detail = document.createElement('span');
+    detail.className = 'tv-chip-text';
+    detail.textContent = label + ': ' + shown;
+    node.appendChild(mark);
+    node.appendChild(detail);
+    return node;
+  }
+  function signal(group, value) {
+    var word = norm(value);
+    if (group === 'ci') {
+      if (['passed','success','succeeded'].indexOf(word) !== -1) return 'passed';
+      if (['failed','failure','error'].indexOf(word) !== -1) return 'failed';
+      if (['pending','running','queued','inprogress'].indexOf(word) !== -1) return 'pending';
+    } else if (group === 'merge') {
+      if (['clean','hashooks'].indexOf(word) !== -1) return 'passed';
+      if (['blocked','dirty','conflicting'].indexOf(word) !== -1) return 'failed';
+      if (['behind','pending'].indexOf(word) !== -1) return 'pending';
+      if (word === 'unstable') return 'degraded';
+    } else if (group === 'installation') {
+      if (['activated','installed','active','success','succeeded','ok'].indexOf(word) !== -1) return 'passed';
+      if (['failed','failure','error'].indexOf(word) !== -1) return 'failed';
+      if (['installing','deploying','updating','pending','running'].indexOf(word) !== -1) return 'pending';
+      if (word === 'staged') return 'degraded';
+    } else if (group === 'health') {
+      if (word === 'notapplicable') return 'na';
+      if (['healthy','active','running','ok','success'].indexOf(word) !== -1) return 'passed';
+      if (['failed','error','unhealthy','dead'].indexOf(word) !== -1) return 'failed';
+      if (['degraded','warning'].indexOf(word) !== -1) return 'degraded';
+    }
+    return 'unknown';
+  }
+
+  window.GwayMonitorStatus = {github:github, deployment:deployment, badge:badge, chip:chip, signal:signal};
 }());
