@@ -56,8 +56,7 @@
         force: false
       register: gway_webos_checkout
 
-    # The runner has already fast-forwarded main, so git.changed can be false
-    # even when this is the first activation of the new release.
+    # The runner pre-fast-forwards main; git.changed is not an activation receipt.
     - name: Read post-checkout SHA
       ansible.builtin.command:
         argv: [git, -C, "{{ gway_webos_repo }}", rev-parse, --verify, HEAD]
