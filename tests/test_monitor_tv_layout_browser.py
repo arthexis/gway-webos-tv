@@ -143,7 +143,8 @@ def test_synthetic_comparison_images(tmp_path):
         wide = Image.open(folder / (name + "-1920x1080.png")).convert("RGB")
         narrow = Image.open(folder / (name + "-960x540.png")).convert("RGB")
         assert wide.size == (1920, 1080) and narrow.size == (960, 540)
-        assert len(set(wide.resize((80, 45)).getdata())) >= 25
+        sampled = wide.resize((80, 45))
+        assert len({sampled.getpixel((x, y)) for x in range(80) for y in range(45)}) >= 25
         compare = Image.new("RGB", (1920, 590), "#0b1524")
         compare.paste(wide.resize((960, 540)), (0, 45))
         compare.paste(narrow, (960, 45))
@@ -151,3 +152,34 @@ def test_synthetic_comparison_images(tmp_path):
         ink.text((20, 12), "1920x1080 at 50%", fill="white")
         ink.text((980, 12), "960x540 native", fill="white")
         compare.save(folder / (name + "-comparison.png"))
+
+
+def test_empty_unknown_and_overflow_never_scroll_the_document():
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 960, "height": 540})
+        page.goto(APP.as_uri(), wait_until="load")
+        page.evaluate("""() => window.GwayMonitorChannels.github.render({
+            repositories: ["example/a"], pull_requests: []})""")
+        assert "No open PRs" in page.locator("#pr-list").inner_text()
+        page.evaluate("() => window.GwayMonitorChannels.github.render(null)")
+        assert page.locator("#pr-summary").inner_text() == "Unavailable"
+        page.evaluate("() => window.GwayMonitorChannels.deployments.render({available:false})")
+        assert page.locator("#deployment-summary").inner_text() == "Deployment data unavailable"
+        prs, data = fixtures()
+        page.evaluate("v => window.GwayMonitorChannels.deployments.render(v)", data)
+        for _ in range(3):
+            page.keyboard.press("PageUp")
+        assert page.locator("#title").inner_text() == "Deployments"
+        for _ in range(6):
+            page.keyboard.press("ArrowDown")
+        assert selected(page) == 6
+        assert page.locator("#deployments").evaluate("e => e.scrollTop") > 0
+        assert page.evaluate("document.scrollingElement.scrollTop") == 0
+        page.evaluate("v => window.GwayMonitorChannels.deployments.render(v)", data)
+        assert selected(page) == 6, "Refresh must preserve remote selection"
+        prs["pull_requests"][0]["title"] = "<img src=x onerror=window.__injected=1>"
+        page.evaluate("v => window.GwayMonitorChannels.github.render(v)", prs)
+        assert page.locator("#pr-list img").count() == 0
+        assert page.evaluate("window.__injected === undefined")
+        browser.close()
