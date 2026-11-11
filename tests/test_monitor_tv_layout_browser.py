@@ -101,6 +101,15 @@ def test_responsive_layout_and_remote_controls(tmp_path, width, height):
         assert "preserve the complete error" in cards.nth(1).locator(".deployment-error").inner_text()
         assert cards.nth(6).locator("[aria-label='Health: not_applicable']").count() == 1
         assert all(card.locator(".tv-chip").count() == 3 for card in cards.all())
+        # All seven compact cards fit at full-HD without obscuring the fixed footer.
+        if width >= 1200:
+            viewport = page.locator("#deployments").bounding_box()
+            assert box[6]["y"] + box[6]["height"] <= viewport["y"] + viewport["height"] + 1
+        # The count and independent pairing hint must not collide.
+        count = page.locator("#channel-count").bounding_box()
+        hint = page.locator("#reconnect-hint").bounding_box()
+        if hint is not None:
+            assert count["x"] + count["width"] <= hint["x"] + 1
         page.screenshot(path=str(output_dir(tmp_path) / f"deployments-{width}x{height}.png"))
         assert selected(page) == 0
         if width >= 1200:
