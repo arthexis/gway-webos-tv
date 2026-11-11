@@ -13,7 +13,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEVICE = "lab-tv"
-TV_DEFERRED = 10  # Distinct from successful installation; runner must not mark TV complete.
+TV_DEFERRED = 10  # webOS service unreachable: power, sleep or network (not provably off)
+TV_DEVELOPER_UNAVAILABLE = 11  # webOS reachable, developer SSH inaccessible
 
 
 def profile_host(home):
@@ -39,11 +40,11 @@ def run(home=None, cli=None, probe=port_available, require_online=False):
     home = home or Path.home()
     host = profile_host(home)
     if not probe(host, 3000):
-        print("TV unavailable (webOS port 3000); deferring TV installation")
+        print("TV power/network unavailable (webOS port 3000); deferring TV installation")
         return TV_DEFERRED if require_online else 0
     if not probe(host, 9922):
-        print("TV developer SSH unavailable (port 9922); deferring TV installation")
-        return TV_DEFERRED if require_online else 0
+        print("TV reachable but Developer Mode SSH unavailable (port 9922); deferring installation")
+        return TV_DEVELOPER_UNAVAILABLE if require_online else 0
     if cli is None:
         spec = importlib.util.spec_from_file_location("tv_app", ROOT / "scripts/tv-app.py")
         cli = importlib.util.module_from_spec(spec)
@@ -85,7 +86,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--require-online", action="store_true",
-        help="Exit 10 if TV is offline; used by CI-gated deploy receipts"
+        help="Exit 10 if webOS is unreachable; 11 if developer SSH unavailable; no TV receipt"
     )
     args = parser.parse_args()
     try:

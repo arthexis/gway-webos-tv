@@ -48,3 +48,15 @@ reopens it; otherwise it leaves the TV's current foreground alone.
 
 No token is stored in the webOS repository. The local GitHub CLI
 authentication must remain functional for the runner user.
+
+## Retry classifications (CI-gated)
+
+The runner treats `10` and `11` as separate **deferred** outcomes, never as
+completed TV installs. `10` means port 3000 is unreachable: possible power
+off, sleep, or network problem; it is not proof of the physical power state.
+`11` means port 3000 responds but developer SSH on 9922 does not: suspect an
+expired or disabled Developer Mode session. The local five-minute systemd
+timer in `arthexis/gway-remote` #556 retries the same successful CI-gated
+main revision when availability changes. Other failures remain fatal, with
+no `tv-installed-sha` receipt. Never remotely turn on a TV or silently
+replace pairing, model or TLS identity.
