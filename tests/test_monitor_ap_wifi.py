@@ -25,13 +25,16 @@ def fake_reader(*args):
         ]}])
     if args[-3:] != ("connection", "show", PROFILE):
         raise AssertionError("unexpected NM profile")
-    prop = args[args.index("-g") + 1]
-    return {
+    props = args[args.index("-g") + 1].split(",")
+    values = {
         "802-11-wireless.mode": "ap",
         "802-11-wireless.ssid": SSID,
         "802-11-wireless-security.key-mgmt": "wpa-psk",
         "802-11-wireless-security.psk": KEY,
-    }[prop]
+    }
+    if len(props) > 1:
+        assert "--show-secrets" in args
+    return "\n".join(values[p] for p in props)
 
 
 def test_active_profile_only_and_valid_wifi_qr():
@@ -61,8 +64,11 @@ def test_active_profile_only_and_valid_wifi_qr():
 ])
 def test_ap_absent_or_invalid_key_fails_closed(overrides):
     def read(*args):
-        if "-g" in args and args[args.index("-g") + 1] in overrides:
-            return overrides[args[args.index("-g") + 1]]
+        if "-g" in args and "," in args[args.index("-g") + 1]:
+            props = args[args.index("-g") + 1].split(",")
+            values = dict(zip(props, fake_reader(*args).split("\n")))
+            values.update(overrides)
+            return "\n".join(values[p] for p in props)
         return fake_reader(*args)
     assert ap_wifi.current_ap(read) == {"available": False}
 
@@ -79,10 +85,13 @@ def test_rotation_reads_fresh_key_every_time():
     calls = []
     def read(*args):
         calls.append(args)
-        if "802-11-wireless-security.psk" in args:
-            return "oldsecret1234" if sum(
-                "802-11-wireless-security.psk" in a for a in calls
+        if "-g" in args and "802-11-wireless-security.psk" in args[args.index("-g") + 1]:
+            values = fake_reader(*args).split("\n")
+            values[-1] = "oldsecret1234" if sum(
+                "802-11-wireless-security.psk" in a[a.index("-g") + 1]
+                for a in calls if "-g" in a
             ) == 1 else "newsecret5678"
+            return "\n".join(values)
         return fake_reader(*args)
     a = ap_wifi.current_ap(read)
     b = ap_wifi.current_ap(read)
@@ -161,3 +170,23 @@ def test_only_paired_monitor_can_request_uncached_wifi(tmp_path, monkeypatch):
         assert anonymous.closed == 1008
 
     asyncio.run(run())
+
+
+def test_profile_field_query_is_batched_without_exposing_password():
+    calls = []
+    def observed(*args):
+        calls.append(args)
+        return fake_reader(*args)
+    assert ap_wifi.current_ap(observed)["available"]
+    assert len(calls) == 3  # active wlan0 UUID, one nmcli profile, one IP
+    assert sum(args[0] == "nmcli" for args in calls) == 2
+    assert "--show-secrets" in calls[1]
+    assert calls[1][calls[1].index("-g") + 1].count(",") == 3
+
+
+def test_ambiguous_multiline_profile_fails_closed():
+    def bad(*args):
+        if "-g" in args and "," in args[args.index("-g") + 1]:
+            return fake_reader(*args) + "\nextra"
+        return fake_reader(*args)
+    assert ap_wifi.current_ap(bad) == {"available": False}
