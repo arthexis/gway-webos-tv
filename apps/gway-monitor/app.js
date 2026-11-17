@@ -4,6 +4,7 @@
   var credential = localStorage.getItem('gway.monitor.credential') || '';
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0, lastWifiRequested = 0;
+  var snapshotPending = false;
   var retryJobs = {}, retryTimer = null;
   function send(message) { if (!ready || !socket || socket.readyState !== WebSocket.OPEN) return false; socket.send(JSON.stringify(message)); return true; }
   window.GwayMonitorChannels.deployments.setRetry(function (name) {
@@ -38,10 +39,11 @@
     value('channel-count', channels[channel].footerText || '');
     window.scrollTo(0, 0);
     if (typeof channels[channel].mount === 'function') channels[channel].mount();
-    if (channel === 0) requestWifi(true);
+    if (channel === 0) requestWifi(false);
   }
   function render(msg) {
     if (!msg || msg.type !== 'monitor.snapshot') return;
+    snapshotPending = false;
     var timestamp = Date.parse(msg.observed_at);
     if (!isFinite(timestamp) || timestamp > Date.now() + 60000) {
       value('freshness', 'Invalid observation time'); return;
@@ -50,6 +52,7 @@
     registry.render(msg); updateFreshness();
   }
   function updateFreshness() {
+    channels[0].expireWifi();
     if (!lastReceived) { value('freshness', 'Waiting for data'); return; }
     var age = Math.max(0, Math.floor((Date.now() - lastObserved) / 1000));
     value('freshness', (age > 30 ? 'Stale data · ' : 'Updated · ') + age + 's ago');
@@ -57,12 +60,16 @@
   function requestWifi(force) {
     if (!ready || channel !== 0) return;
     var now = Date.now();
-    if (!force && now - lastWifiRequested < 60000) return;
+    if (!force && now - lastWifiRequested < 300000) return;
     if (send({type:'monitor.wifi'})) lastWifiRequested = now;
   }
   function request() {
-    if (ready && socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({type: 'monitor.read'}));
+    // The generic monitor snapshot can take several seconds; prioritize
+    // the small AP response on this same sequential WSS connection.
     requestWifi(false);
+    // A full snapshot may take longer than our poll interval. Do not queue
+    // requests behind it and delay subsequent Wi-Fi updates.
+    if (!snapshotPending && send({type: 'monitor.read'})) snapshotPending = true;
     updateFreshness();
   }
   function connect(secret) {
@@ -88,10 +95,10 @@
       }
       if (msg.type === 'paired' || msg.type === 'ready') {
         ready = true; showConnection('Connected'); dialog.close();
-        lastWifiRequested = 0;
+        lastWifiRequested = 0; snapshotPending = false;
         request(); poll = setInterval(request, 10000);
       } else if (msg.type === 'monitor.snapshot') render(msg);
-      else if (msg.type === 'monitor.wifi' && ready && channel === 0) channels[0].renderWifi(msg.wifi);
+      else if (msg.type === 'monitor.wifi' && ready) channels[0].renderWifi(msg.wifi);
       else if (msg.type === 'deployment.retry.started' || msg.type === 'deployment.retry.running') {
         if (typeof msg.name === 'string') { retryJobs[msg.name] = true; channels.filter(function (c) { return c.id === 'deployments'; })[0].retryState(msg.name, 'running'); }
       } else if (msg.type === 'deployment.retry.result') {
@@ -103,13 +110,15 @@
       }
     };
     socket.onclose = function (event) {
-      ready = false; lastWifiRequested = 0; channels[0].clearWifi();
+      ready = false; lastWifiRequested = 0; snapshotPending = false;
+      if (event.code === 1008) channels[0].clearWifi();
+      else channels[0].markWifiStale();
       showConnection(event.code === 1008 ? 'Authorization rejected' : 'Disconnected');
       if (poll) clearInterval(poll);
       if (event.code === 1008) { credential = ''; localStorage.removeItem('gway.monitor.credential'); }
       else if (credential) retry = setTimeout(function () { connect(''); }, 5000);
     };
-    socket.onerror = function () { channels[0].clearWifi(); showConnection('Connection failed'); };
+    socket.onerror = function () { channels[0].markWifiStale(); showConnection('Connection failed'); };
   }
   document.addEventListener('keydown', function (event) {
     if (dialog.isOpen()) return;
