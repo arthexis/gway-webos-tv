@@ -63,17 +63,24 @@ def current_ap(reader=command) -> dict:
         )
         if not UUID.fullmatch(profile):
             raise WifiUnavailable("No active AP profile")
-        def field(key: str, *, secret: bool = False) -> str:
-            args = ["nmcli"]
-            if secret:
-                args.append("--show-secrets")
-            args.extend(("--escape", "no", "-g", key, "connection", "show", profile))
-            return reader(*args)
-        if field("802-11-wireless.mode") != "ap":
+        # A single NetworkManager read is much cheaper than launching one
+        # nmcli process per field. Reject ambiguous output rather than
+        # accidentally treating a partial key as a valid Wi-Fi credential.
+        fields = (
+            "802-11-wireless.mode",
+            "802-11-wireless.ssid",
+            "802-11-wireless-security.key-mgmt",
+            "802-11-wireless-security.psk",
+        )
+        values = reader(
+            "nmcli", "--show-secrets", "--escape", "no", "-g",
+            ",".join(fields), "connection", "show", profile,
+        ).split("\n")
+        if len(values) != len(fields):
+            raise WifiUnavailable("AP profile has ambiguous fields")
+        mode, ssid, auth, password = values
+        if mode != "ap":
             raise WifiUnavailable("wlan0 is not an AP")
-        ssid = field("802-11-wireless.ssid")
-        auth = field("802-11-wireless-security.key-mgmt")
-        password = field("802-11-wireless-security.psk", secret=True)
         if not (ssid and len(ssid.encode("utf-8")) <= 32 and
                 not any(ord(c) < 32 for c in ssid) and
                 auth in ("wpa-psk", "sae") and
