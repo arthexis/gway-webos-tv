@@ -38,7 +38,7 @@
     value('channel-count', channels[channel].footerText || '');
     window.scrollTo(0, 0);
     if (typeof channels[channel].mount === 'function') channels[channel].mount();
-    if (channel === 0) requestWifi(true);
+    if (channel === 0) requestWifi(false);
   }
   function render(msg) {
     if (!msg || msg.type !== 'monitor.snapshot') return;
@@ -50,6 +50,7 @@
     registry.render(msg); updateFreshness();
   }
   function updateFreshness() {
+    channels[0].expireWifi();
     if (!lastReceived) { value('freshness', 'Waiting for data'); return; }
     var age = Math.max(0, Math.floor((Date.now() - lastObserved) / 1000));
     value('freshness', (age > 30 ? 'Stale data · ' : 'Updated · ') + age + 's ago');
@@ -57,12 +58,14 @@
   function requestWifi(force) {
     if (!ready || channel !== 0) return;
     var now = Date.now();
-    if (!force && now - lastWifiRequested < 60000) return;
+    if (!force && now - lastWifiRequested < 300000) return;
     if (send({type:'monitor.wifi'})) lastWifiRequested = now;
   }
   function request() {
-    if (ready && socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({type: 'monitor.read'}));
+    // The generic monitor snapshot can take several seconds; prioritize
+    // the small AP response on this same sequential WSS connection.
     requestWifi(false);
+    if (ready && socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({type: 'monitor.read'}));
     updateFreshness();
   }
   function connect(secret) {
@@ -103,13 +106,15 @@
       }
     };
     socket.onclose = function (event) {
-      ready = false; lastWifiRequested = 0; channels[0].clearWifi();
+      ready = false; lastWifiRequested = 0;
+      if (event.code === 1008) channels[0].clearWifi();
+      else channels[0].markWifiStale();
       showConnection(event.code === 1008 ? 'Authorization rejected' : 'Disconnected');
       if (poll) clearInterval(poll);
       if (event.code === 1008) { credential = ''; localStorage.removeItem('gway.monitor.credential'); }
       else if (credential) retry = setTimeout(function () { connect(''); }, 5000);
     };
-    socket.onerror = function () { channels[0].clearWifi(); showConnection('Connection failed'); };
+    socket.onerror = function () { channels[0].markWifiStale(); showConnection('Connection failed'); };
   }
   document.addEventListener('keydown', function (event) {
     if (dialog.isOpen()) return;
