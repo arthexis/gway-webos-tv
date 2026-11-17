@@ -83,7 +83,7 @@ assert.equal(map['ap-wifi-qr'].hidden,false);
 hw.clearWifi();
 assert.equal(map['ap-password'].textContent,'—');
 assert.equal(map['ap-wifi-qr'].hidden,true);
-assert.equal(map['ap-wifi-qr'].children.length,1); // mock does not clear children on textContent
+assert.equal(map['ap-wifi-qr'].children.length,0); // textContent clears children
 hw.renderWifi({available:false});
 assert.equal(map['ap-wifi-qr'].hidden,true);
 hw.renderWifi({available:true,ssid:'x',security:'WPA2',password:'abc',
