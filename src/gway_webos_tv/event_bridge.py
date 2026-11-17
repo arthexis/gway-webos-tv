@@ -262,6 +262,15 @@ class Bridge:
                         return
                     await ws.send(json.dumps(await self.monitor()))
                     continue
+                if isinstance(data, dict) and data.get("type") == "monitor.wifi":
+                    if not self.authorized(session_digest, "monitor.read"):
+                        await ws.close(1008, "Capability denied")
+                        return
+                    # Unlike monitor.snapshot this contains a Wi-Fi credential:
+                    # send only on explicit request, never cache, persist or log.
+                    from .ap_wifi import wifi_message
+                    await ws.send(json.dumps(await asyncio.to_thread(wifi_message)))
+                    continue
                 if isinstance(data, dict) and data.get("type") == "deployment.retry":
                     if not self.authorized(session_digest, "deployment.retry"):
                         await ws.send(json.dumps({"type": "deployment.retry.result", "error": "Permission denied"}))
