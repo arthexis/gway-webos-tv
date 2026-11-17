@@ -17,7 +17,7 @@ function el(id) {
   return views[id] || (views[id]={id,hidden:false,textContent:'',className:''});
 }
 const sent=[], intervals={};
-let activeSocket;
+let activeSocket, keyHandler, wifiRenders=0;
 class Socket {
   constructor(url) {assert.equal(url,'wss://monitor.test');this.readyState=1;activeSocket=this;}
   send(message) {sent.push(JSON.parse(message));}
@@ -30,6 +30,7 @@ const hardware={
 };
 let clears=0, stales=0;
 hardware.clearWifi=()=>{clears++};
+hardware.renderWifi=()=>{wifiRenders++};
 hardware.markWifiStale=()=>{stales++};
 const channels={hardware,
   deployments:{id:'deployments',order:3,title:'Deployments',setRetry:()=>{},mount:()=>{},unmount:()=>{}},
@@ -44,7 +45,7 @@ const context={
     GwaySecretDialog:{create(){return {close(){},open(){},isOpen(){return false}}}},
     scrollTo(){}
   },
-  document:{getElementById:el,addEventListener(){}},
+  document:{getElementById:el,addEventListener(name,fn){if(name==='keydown')keyHandler=fn}},
   localStorage:{getItem(key){
     return key==='gway.bridge.url'?'wss://monitor.test':
       key==='gway.monitor.credential'?'stored-pairing':null;
@@ -60,6 +61,9 @@ activeSocket.onmessage({data:JSON.stringify({type:'ready'})});
 assert.equal(sent[0].type,'auth');
 assert.equal(sent[1].type,'monitor.wifi');
 assert.equal(sent[2].type,'monitor.read');
+keyHandler({keyCode:34,preventDefault(){}});
+activeSocket.onmessage({data:JSON.stringify({type:'monitor.wifi',wifi:{available:true}})});
+assert.equal(wifiRenders,1); // response arriving after leaving Hardware is retained
 for(let n=0;n<5;n++) intervals[10000]();
 assert.equal(sent.filter(x=>x.type==='monitor.read').length,1);
 assert.equal(sent.filter(x=>x.type==='monitor.wifi').length,1);
