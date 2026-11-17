@@ -41,3 +41,25 @@ main>section .grid{padding-bottom:8px}
 /* Hide visual scrollbars without disabling remote-arrow navigation. */
 #github,#deployments{scrollbar-width:none;-ms-overflow-style:none}
 #github::-webkit-scrollbar,#deployments::-webkit-scrollbar{display:none;width:0;height:0}
+
+
+/* Hardware home: use the vacant lower-right grid area, below System. */
+#hardware .grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}
+#hardware .ap-connect{grid-column:3;grid-row:2/span 2;min-width:0;min-height:0;
+  display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;
+  padding:12px 15px}
+.ap-connect h2{font-size:25px;margin:0 0 4px}
+.ap-meta{width:100%;min-width:0}
+.ap-meta .label{font-size:15px;letter-spacing:1px;margin:2px 0 0}
+.ap-meta p:not(.label){margin:2px 0 5px;font-size:21px;line-height:1.15;overflow-wrap:anywhere}
+.ap-ssid{font-weight:bold;color:#7fe4bd}
+.ap-password{font-weight:bold;letter-spacing:1px;color:#f1f7fb;word-break:break-word}
+.ap-wifi-qr{background:#fff;border-radius:9px;padding:6px;width:174px;height:174px;
+  max-width:100%;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+.ap-wifi-qr svg{width:100%;height:100%;display:block}
+.ap-connect .ap-instructions{font-size:16px;line-height:1.2;margin:3px 0 0}
+.ap-connect .ap-gateway{font-size:16px;color:#9fb9c8;margin:1px 0 0;overflow-wrap:anywhere}
+@media(max-width:780px){
+  #hardware .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #hardware .ap-connect{grid-column:1/-1;grid-row:auto}
+}
