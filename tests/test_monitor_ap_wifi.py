@@ -17,7 +17,7 @@ KEY = r"test\secret;:,XYZ123"
 
 
 def fake_reader(*args):
-    if args[-4:] == ("device", "show", "wlan0"):
+    if args[-3:] == ("device", "show", "wlan0"):
         return PROFILE
     if args[:1] == ("ip",):
         return json.dumps([{"addr_info": [
@@ -45,7 +45,6 @@ def test_active_profile_only_and_valid_wifi_qr():
     rows = result["qr"]
     assert 21 <= len(rows) <= 185
     assert all(len(row) == len(rows) and re.fullmatch("[01]+", row) for row in rows)
-    expected = r'WIFI:T:WPA;S:Kiosk\;Lab\:\\"A\\";P:test\\secret\;\:\,XYZ123;;'
     assert ap_wifi.wifi_escape(SSID) == r'Kiosk\;Lab\:\"A\"'
     assert ap_wifi.wifi_escape(KEY) == r'test\\secret\;\:\,XYZ123'
     assert rows == ap_wifi.qr_matrix(SSID, KEY)
