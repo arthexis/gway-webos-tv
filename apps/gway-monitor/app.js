@@ -4,6 +4,7 @@
   var credential = localStorage.getItem('gway.monitor.credential') || '';
   var socket = null, ready = false, retry = null, poll = null, channel = 0;
   var lastObserved = 0, lastReceived = 0, lastWifiRequested = 0;
+  var snapshotPending = false;
   var retryJobs = {}, retryTimer = null;
   function send(message) { if (!ready || !socket || socket.readyState !== WebSocket.OPEN) return false; socket.send(JSON.stringify(message)); return true; }
   window.GwayMonitorChannels.deployments.setRetry(function (name) {
@@ -42,6 +43,7 @@
   }
   function render(msg) {
     if (!msg || msg.type !== 'monitor.snapshot') return;
+    snapshotPending = false;
     var timestamp = Date.parse(msg.observed_at);
     if (!isFinite(timestamp) || timestamp > Date.now() + 60000) {
       value('freshness', 'Invalid observation time'); return;
@@ -65,7 +67,9 @@
     // The generic monitor snapshot can take several seconds; prioritize
     // the small AP response on this same sequential WSS connection.
     requestWifi(false);
-    if (ready && socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({type: 'monitor.read'}));
+    // A full snapshot may take longer than our poll interval. Do not queue
+    // requests behind it and delay subsequent Wi-Fi updates.
+    if (!snapshotPending && send({type: 'monitor.read'})) snapshotPending = true;
     updateFreshness();
   }
   function connect(secret) {
@@ -91,7 +95,7 @@
       }
       if (msg.type === 'paired' || msg.type === 'ready') {
         ready = true; showConnection('Connected'); dialog.close();
-        lastWifiRequested = 0;
+        lastWifiRequested = 0; snapshotPending = false;
         request(); poll = setInterval(request, 10000);
       } else if (msg.type === 'monitor.snapshot') render(msg);
       else if (msg.type === 'monitor.wifi' && ready && channel === 0) channels[0].renderWifi(msg.wifi);
@@ -106,7 +110,7 @@
       }
     };
     socket.onclose = function (event) {
-      ready = false; lastWifiRequested = 0;
+      ready = false; lastWifiRequested = 0; snapshotPending = false;
       if (event.code === 1008) channels[0].clearWifi();
       else channels[0].markWifiStale();
       showConnection(event.code === 1008 ? 'Authorization rejected' : 'Disconnected');
