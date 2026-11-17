@@ -27,11 +27,17 @@ def test_qr_rendering_no_html_injection_and_clear_on_unavailable():
 const assert = require('assert'), fs = require('fs'), vm = require('vm');
 const map = {};
 function element(tag, id) {
-  return {
-    tag, id, textContent:'', hidden:true, children:[], attrs:{},
+  const node = {
+    tag, id, hidden:true, children:[], attrs:{},
     appendChild(x){this.children.push(x)},
     setAttribute(key,val){this.attrs[key]=val},
   };
+  let text = '';
+  Object.defineProperty(node,'textContent',{
+    get(){return text},
+    set(value){text=value;node.children=[]}
+  });
+  return node;
 }
 const document = {
   getElementById(id){return map[id] || (map[id]=element('div',id))},
