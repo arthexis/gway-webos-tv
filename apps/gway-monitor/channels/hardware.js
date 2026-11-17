@@ -19,12 +19,28 @@
     var ips = h.interfaces || {};
     ['eth0', 'wlan0', 'wlan1'].forEach(function (id) { value(id, address(ips[id])); });
   }
+  var activeWifi = null, confirmedAt = 0;
+  var WIFI_GRACE_MS = 30 * 60 * 1000;
   function clearWifi() {
+    activeWifi = null;
+    confirmedAt = 0;
     ['ap-ssid', 'ap-security', 'ap-password', 'ap-gateway'].forEach(function (id) { value(id, '—'); });
     value('ap-instructions', 'AP details unavailable');
     var qr = el('ap-wifi-qr');
     qr.textContent = '';
     qr.hidden = true;
+  }
+  function markWifiStale() {
+    // Keep last verified credentials through transient bridge or NM failures.
+    // Clearly label them stale, and never claim they remain current forever.
+    if (!activeWifi || Date.now() - confirmedAt > WIFI_GRACE_MS) {
+      clearWifi();
+      return;
+    }
+    value('ap-instructions', 'Last confirmed network · reconnecting');
+  }
+  function expireWifi() {
+    if (activeWifi && Date.now() - confirmedAt > WIFI_GRACE_MS) clearWifi();
   }
   function qrSvg(rows) {
     if (!Array.isArray(rows) || rows.length < 21 || rows.length > 185) return null;
@@ -48,24 +64,31 @@
     return svg;
   }
   function renderWifi(wifi) {
-    // Authenticated WSS response only. Never persist, log, or embed the
-    // password/QR payload into HTML or external images.
-    clearWifi();
     if (!wifi || wifi.available !== true || typeof wifi.ssid !== 'string' ||
         typeof wifi.password !== 'string' || typeof wifi.gateway !== 'string' ||
-        typeof wifi.security !== 'string') return;
-    var graphic = qrSvg(wifi.qr);
-    if (!graphic) return;
-    value('ap-ssid', wifi.ssid);
-    value('ap-security', wifi.security);
-    value('ap-password', wifi.password);
-    value('ap-gateway', 'Portal: ' + (typeof wifi.portal_url === 'string' ? wifi.portal_url : 'http://' + wifi.gateway));
+        typeof wifi.security !== 'string') {
+      markWifiStale();
+      return;
+    }
+    var signature = JSON.stringify([wifi.ssid, wifi.security, wifi.password, wifi.gateway, wifi.portal_url]);
+    if (signature !== activeWifi) {
+      // Build and validate the new QR before touching the existing DOM.
+      var graphic = qrSvg(wifi.qr);
+      if (!graphic) { markWifiStale(); return; }
+      value('ap-ssid', wifi.ssid);
+      value('ap-security', wifi.security);
+      value('ap-password', wifi.password);
+      value('ap-gateway', 'Portal: ' + (typeof wifi.portal_url === 'string' ? wifi.portal_url : 'http://' + wifi.gateway));
+      var node = el('ap-wifi-qr');
+      node.textContent = '';
+      node.appendChild(graphic);
+      node.hidden = false;
+      node.setAttribute('aria-label', 'Scan to join Wi-Fi ' + wifi.ssid);
+      activeWifi = signature;
+    }
+    confirmedAt = Date.now();
     value('ap-instructions', 'Scan to join · registration required for Internet');
-    var node = el('ap-wifi-qr');
-    node.appendChild(graphic);
-    node.hidden = false;
-    node.setAttribute('aria-label', 'Scan to join Wi-Fi ' + wifi.ssid);
   }
   window.GwayMonitorChannels = window.GwayMonitorChannels || {};
-  window.GwayMonitorChannels.hardware = {id:'hardware', order:0, title:'Hardware', snapshotKey:'hardware', render:renderHardware, renderWifi:renderWifi, clearWifi:clearWifi, mount:function () {}, unmount:function () { clearWifi(); }};
+  window.GwayMonitorChannels.hardware = {id:'hardware', order:0, title:'Hardware', snapshotKey:'hardware', render:renderHardware, renderWifi:renderWifi, clearWifi:clearWifi, markWifiStale:markWifiStale, expireWifi:expireWifi, mount:function () {}, unmount:function () {}};
 }());
