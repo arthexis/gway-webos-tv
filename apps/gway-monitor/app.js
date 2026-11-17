@@ -98,7 +98,7 @@
         lastWifiRequested = 0; snapshotPending = false;
         request(); poll = setInterval(request, 10000);
       } else if (msg.type === 'monitor.snapshot') render(msg);
-      else if (msg.type === 'monitor.wifi' && ready && channel === 0) channels[0].renderWifi(msg.wifi);
+      else if (msg.type === 'monitor.wifi' && ready) channels[0].renderWifi(msg.wifi);
       else if (msg.type === 'deployment.retry.started' || msg.type === 'deployment.retry.running') {
         if (typeof msg.name === 'string') { retryJobs[msg.name] = true; channels.filter(function (c) { return c.id === 'deployments'; })[0].retryState(msg.name, 'running'); }
       } else if (msg.type === 'deployment.retry.result') {
