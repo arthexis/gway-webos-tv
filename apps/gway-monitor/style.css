@@ -63,3 +63,17 @@ main>section .grid{padding-bottom:8px}
   #hardware .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   #hardware .ap-connect{grid-column:1/-1;grid-row:auto}
 }
+.image-stage{height:calc(100% - 55px);display:flex;align-items:center;justify-content:center;overflow:hidden;background:#07111d;border-radius:14px}
+.image-stage img{display:block;max-height:100%;max-width:100%;object-fit:contain}
+.slide-from-right{animation:image-from-right .28s ease-out}.slide-from-left{animation:image-from-left .28s ease-out}
+@keyframes image-from-right{from{transform:translateX(80%);opacity:.5}to{transform:translateX(0);opacity:1}}
+@keyframes image-from-left{from{transform:translateX(-80%);opacity:.5}to{transform:translateX(0);opacity:1}}
+
+/* The gallery has a fixed viewport and uses arrow keys for navigation. */
+#images{overflow:hidden;scrollbar-width:none;-ms-overflow-style:none}
+#images::-webkit-scrollbar{display:none;width:0;height:0}
+.slide-from-top{animation:image-from-top .28s ease-out}.slide-from-bottom{animation:image-from-bottom .28s ease-out}
+@keyframes image-from-top{from{transform:translateY(-80%);opacity:.5}to{transform:translateY(0);opacity:1}}
+@keyframes image-from-bottom{from{transform:translateY(80%);opacity:.5}to{transform:translateY(0);opacity:1}}
+
+.image-stage img.zoomed{transition:transform .16s ease-out;will-change:transform}

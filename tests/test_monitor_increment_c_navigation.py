@@ -16,7 +16,7 @@ const root=process.argv[1],listeners={};
 const nodes={};
 function node(id){return nodes[id]||(nodes[id]={
   id,hidden:false,className:'',textContent:'',children:[],
-  classList:{toggle(){}},appendChild(x){this.children.push(x)},scrollIntoView(){}
+  classList:{toggle(){},remove(){}},style:{},parentElement:{hidden:false},removeAttribute(){},appendChild(x){this.children.push(x)},scrollIntoView(){}
 });}
 const store={};
 const ctx={
@@ -33,16 +33,22 @@ ctx.window.GwaySecretDialog={create(){return {
 }}};
 for(const name of ['core/format.js','channel-registry.js',
  'channels/hardware.js','channels/ocpp.js','channels/github.js',
- 'channels/deployments.js','channels/fleet.js','core/status.js','app.js']){
+ 'channels/deployments.js','channels/fleet.js','channels/images.js','core/status.js','app.js']){
  vm.runInNewContext(fs.readFileSync(path.join(root,name),'utf8'),ctx,{filename:name});
 }
 assert.equal(node('hardware').hidden,false);
 assert.equal(node('ocpp').hidden,true);
 function key(code){let prevented=false;listeners.keydown({keyCode:code,preventDefault(){prevented=true}});return prevented}
 assert(key(34));
+assert.equal(node('images').hidden,false);
+assert(key(34));
 assert.equal(node('fleet').hidden,false);
 assert(key(33));
+assert.equal(node('images').hidden,false);
+assert(key(33));
 assert.equal(node('hardware').hidden,false);
+assert(key(34));
+assert.equal(node('images').hidden,false);
 assert(key(34));
 assert.equal(node('fleet').hidden,false);
 assert(key(40));
