@@ -7,6 +7,7 @@
   var snapshotPending = false;
   var retryJobs = {}, retryTimer = null;
   function send(message) { if (!ready || !socket || socket.readyState !== WebSocket.OPEN) return false; socket.send(JSON.stringify(message)); return true; }
+  window.GwayMonitorChannels.images.setRequest(function (id) { send({type:'monitor.image', id:id}); });
   window.GwayMonitorChannels.deployments.setRetry(function (name) {
     if (retryJobs[name] || !send({type:'deployment.retry', name:name})) return false;
     retryJobs[name] = true;
@@ -37,9 +38,11 @@
     });
     value('title', channels[channel].title);
     value('channel-count', channels[channel].footerText || '');
+    el('channel-count').parentElement.hidden = channels[channel].id === 'images';
     window.scrollTo(0, 0);
     if (typeof channels[channel].mount === 'function') channels[channel].mount();
     if (channel === 0) requestWifi(false);
+    if (channels[channel].id === 'images') send({type:'monitor.images'});
   }
   function render(msg) {
     if (!msg || msg.type !== 'monitor.snapshot') return;
@@ -70,6 +73,7 @@
     // A full snapshot may take longer than our poll interval. Do not queue
     // requests behind it and delay subsequent Wi-Fi updates.
     if (!snapshotPending && send({type: 'monitor.read'})) snapshotPending = true;
+    if (channels[channel].id === 'images') send({type:'monitor.images'});
     updateFreshness();
   }
   function connect(secret) {
@@ -97,7 +101,9 @@
         ready = true; showConnection('Connected'); dialog.close();
         lastWifiRequested = 0; snapshotPending = false;
         request(); poll = setInterval(request, 10000);
-      } else if (msg.type === 'monitor.snapshot') render(msg);
+      } else if (msg.type === 'monitor.images' && channels[channel].id === 'images') window.GwayMonitorChannels.images.update(msg.images);
+      else if (msg.type === 'monitor.image' && channels[channel].id === 'images') window.GwayMonitorChannels.images.image(msg.id, msg.data);
+      else if (msg.type === 'monitor.snapshot') render(msg);
       else if (msg.type === 'monitor.wifi' && ready) channels[0].renderWifi(msg.wifi);
       else if (msg.type === 'deployment.retry.started' || msg.type === 'deployment.retry.running') {
         if (typeof msg.name === 'string') { retryJobs[msg.name] = true; channels.filter(function (c) { return c.id === 'deployments'; })[0].retryState(msg.name, 'running'); }

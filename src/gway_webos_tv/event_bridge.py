@@ -2,7 +2,6 @@
 
 import argparse
 import asyncio
-import subprocess
 import hashlib
 import hmac
 import json
@@ -10,12 +9,15 @@ import os
 import re
 import secrets
 import ssl
+import subprocess
 import tempfile
 import time
 from pathlib import Path
 
 from websockets.asyncio.server import serve
 
+from .image_folders import scan_folders
+from .image_roll import image_data, images
 from .monitor import snapshot
 
 
@@ -261,6 +263,21 @@ class Bridge:
                         await ws.close(1008, "Capability denied")
                         return
                     await ws.send(json.dumps(await self.monitor()))
+                    continue
+                if isinstance(data, dict) and data.get("type") == "monitor.images":
+                    if not self.authorized(session_digest, "monitor.read"):
+                        await ws.close(1008, "Capability denied")
+                        return
+                    await asyncio.to_thread(scan_folders)
+                    await ws.send(json.dumps({"type": "monitor.images", "images": await asyncio.to_thread(images)}))
+                    continue
+                if isinstance(data, dict) and data.get("type") == "monitor.image":
+                    if not self.authorized(session_digest, "monitor.read"):
+                        await ws.close(1008, "Capability denied")
+                        return
+                    image_id = data.get("id")
+                    content = await asyncio.to_thread(image_data, image_id)
+                    await ws.send(json.dumps({"type": "monitor.image", "id": image_id, "data": content}))
                     continue
                 if isinstance(data, dict) and data.get("type") == "monitor.wifi":
                     if not self.authorized(session_digest, "monitor.read"):

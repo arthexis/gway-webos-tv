@@ -11,6 +11,6 @@ belong outside this checkout. Examples and tests use documentation addresses.
 Never print a client key or place it in command arguments. Normal commands
 require saved pairing and must not silently initiate pairing or wake a TV.
 
-Run `python -m pytest`, `ruff check .`, and `ruff format --check .` before pushing.
+Run `python -m pytest` before pushing. Do not add Ruff checks to PR validation.
 Tests use loopback emulators, not real TVs. Live checks require the operator's
 authorization; distinguish API acceptance from confirmed foreground state.

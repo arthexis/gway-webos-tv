@@ -28,7 +28,7 @@ def test_monitor_packaging_stages_and_injects_without_modifying_source(tmp_path,
         assert "wss://example.test:8769" in staged_app
         assert (staged / "channel-registry.js").is_file()
         metadata = json.loads((staged / "appinfo.json").read_text())
-        assert metadata["version"] == "0.2.1"
+        assert metadata["version"] == "0.2.6"
         package = stage_root / f"{metadata['id']}_{metadata['version']}_all.ipk"
         package.write_bytes(b"test-package")
         return ""

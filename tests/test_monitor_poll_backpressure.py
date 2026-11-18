@@ -14,7 +14,7 @@ def test_wss_prioritizes_wifi_and_limits_outstanding_snapshots():
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const views={};
 function el(id) {
-  return views[id] || (views[id]={id,hidden:false,textContent:'',className:''});
+  return views[id] || (views[id]={id,hidden:false,textContent:'',className:'',parentElement:{hidden:false}});
 }
 const sent=[], intervals={};
 let activeSocket, keyHandler, wifiRenders=0;
@@ -36,7 +36,8 @@ const channels={hardware,
   deployments:{id:'deployments',order:3,title:'Deployments',setRetry:()=>{},mount:()=>{},unmount:()=>{}},
   ocpp:{id:'ocpp',order:1,title:'OCPP'},
   github:{id:'github',order:2,title:'GitHub'},
-  fleet:{id:'fleet',order:4,title:'Fleet'}
+  fleet:{id:'fleet',order:4,title:'Fleet'},
+  images:{id:'images',order:5,title:'Images',setRequest:()=>{},update:()=>{},image:()=>{}}
 };
 const context={
   window:{

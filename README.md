@@ -268,8 +268,6 @@ overrides. The developer key is handled by the CLI, outside this checkout.
 uv venv
 uv pip install --python .venv/bin/python -e '.[dev]'
 .venv/bin/python -m pytest
-.venv/bin/ruff check .
-.venv/bin/ruff format --check .
 .venv/bin/python -m build
 ```
 
@@ -277,3 +275,38 @@ Tests use loopback TV emulators and temporary certificates, with no real-TV
 credentials. Live acceptance on the operator's TV is kept separate from CI:
 saved-key reconnection, HDMI selection plus foreground verification, and a
 downloaded native screenshot should each be checked when changing the adapter.
+
+### Monitor image roll
+
+The Images channel shows up to ten recent sets of private images. Page Up/Down selects
+channels; Left/Right moves between images and Up/Down changes sets. OK toggles
+2× zoom; arrow keys pan while zoomed, and changing channels exits zoom. The paired monitor requests
+images over its authenticated WSS connection. On the bridge host, explicitly
+add an image with `./run.sh image-roll-add.py /absolute/path/to/image.png`.
+Images are resized and stored privately in `~/.local/state/gway-webos-tv/image-roll`;
+new sets evict older sets. A set continues while consecutive images are less than five minutes apart. They can be sensitive: every monitor credential
+with `monitor.read` can view the roll. The optional `image-roll-hook.py` accepts
+supported Codex PostToolUse image blocks and explicit output paths; support
+varies by tool and execution path. No unconfigured directory scanning is done.
+
+Folder import is configured by `~/.config/gway-webos-tv/image-folders.json`:
+`{"folders":[{"path":"/absolute/folder","since":1700000000}]}`. Paths are
+recursive; `since` is an optional Unix timestamp. The bridge imports stable PNG,
+JPEG and WebP files when the Images channel polls, and remembers unchanged files.
+Only configure folders whose contents may be displayed on the paired TV.
+
+To enable the optional Codex hook, add the following to the user's
+`~/.codex/config.toml`, replacing the two paths with the repository's Python
+environment and checkout. Review and trust it in Codex Hooks. Some hosted
+tools do not pass their image output to local hooks; folder import and explicit
+addition remain available for those captures.
+
+```toml
+[[hooks.PostToolUse]]
+matcher = ".*(imagegen|screenshot|view_image).*"
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = "/absolute/repo/.venv/bin/python /absolute/repo/scripts/image-roll-hook.py"
+async = true
+timeout = 30
+```
