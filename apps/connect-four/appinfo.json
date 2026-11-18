@@ -1,0 +1,10 @@
+{
+  "id": "com.arthexis.gway.connectfour",
+  "version": "0.1.0",
+  "vendor": "Arthexis",
+  "type": "web",
+  "main": "index.html",
+  "title": "Connect Four",
+  "icon": "icon.png",
+  "requiredACG": []
+}
