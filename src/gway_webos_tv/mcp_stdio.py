@@ -74,7 +74,10 @@ def validate(name, arguments):
     if operation == "youtube.random":
         from .randomizers import randomizer_url
 
-        randomizer_url(params.get("service", "random-video"), params.get("category"))
+        try:
+            randomizer_url(params.get("service", "random-video"), params.get("category"))
+        except TVError:
+            raise ValueError("invalid_arguments") from None
     return Operation(operation, params)
 
 
