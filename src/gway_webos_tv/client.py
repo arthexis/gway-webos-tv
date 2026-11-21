@@ -204,6 +204,18 @@ class TV:
         foreground = await self.wait_foreground(app, wait)
         return {"app_id": app, "foreground_app": foreground, "verified": True}
 
+    async def open_browser(self, url: str, wait: float) -> dict:
+        """Open a fixed randomizer site; foreground confirmation is not video playback."""
+        await self.call(
+            self.client.request("ssap://system.launcher/open", {"target": url})
+        )
+        foreground = await self.wait_foreground("com.webos.app.browser", wait)
+        return {
+            "foreground_app": foreground,
+            "browser_verified": True,
+            "video_verified": False,
+        }
+
     async def capture(self) -> tuple[bytes, str]:
         capture = await self.call(self.client.take_screenshot())
         uri = capture.get("imageUri")
