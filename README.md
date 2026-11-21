@@ -39,6 +39,32 @@ tv yt                             # short form of youtube
 tv yts "chatgpt"                   # direct shortcut for youtube search
 ```
 
+### Random YouTube discovery (external services)
+
+```sh
+tv youtube random                                  # random-video.com, broad archived catalog
+tv yt random --service ytroulette                  # YTRoulette catalog
+tv youtube random --service ytroulette --category music
+tv youtube random --service obscuretube            # obscure / low-view catalog
+tv --json youtube random --service ytroulette --category zero
+```
+
+`youtube random` (alias `yt r`) opens the selected **external randomizer website**
+in the paired TV's web browser using the existing saved pairing and verifies
+that the browser is in the foreground. It does **not** parse third-party page
+content or claim to play a specific video inside the native YouTube app.
+The result explicitly reports `browser_verified=true` and
+`video_verified=false`; actual video selection, playback and browser
+compatibility require a live check. The random selection is performed by the
+service from its own catalog, **not** uniformly across every video on YouTube.
+
+Services are a fixed allowlist: `random-video` (default), `ytroulette`,
+and `obscuretube`. The `--category music|sports|gaming|zero` option is
+supported only for YTRoulette, via the provider's published category pages.
+Invalid service/category combinations fail *before* any TV connection.
+Other site-specific options (such as year, views or language) are intentionally
+not passed through without a documented stable URL/API contract.
+
 `youtube`/`yt` and `search`/`s` can be mixed: `tv youtube s "chatgpt"` and
 `tv yt search "chatgpt"` run the same workflow as the full command.
 
@@ -130,7 +156,7 @@ Watchtower gateway or transport.
 
 - `read`: `status`, `inputs.list`, `apps.list`.
 - `execute`: `inputs.select`, `apps.launch`, `screen.capture`,
-  `youtube.open`, `youtube.search`.
+  `youtube.open`, `youtube.search`, `youtube.random`.
 - `pair` and `pair.code` are intentionally not exposed, and arbitrary
   shell commands are rejected.
 

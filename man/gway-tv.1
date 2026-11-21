@@ -52,6 +52,13 @@ Navigation supports the classic English/Spanish YouTube TV layout and needs
 local tesseract-ocr with its English language data. An unrecognized screen
 stops navigation and saves a private diagnostic capture under ~/screenshots.
 .TP
+.BI "youtube random [--service SERVICE] [--category CATEGORY] [--wait seconds]"
+Alias: yt random or yt r. Opens a fixed external video randomizer website in
+the paired TV browser: random-video (default), ytroulette, or obscuretube.
+The --category option supports music, sports, gaming, or zero with ytroulette
+only. Browser foreground is verified, but video selection and playback are
+not. The service randomizes its own catalog, not all YouTube uploads.
+.TP
 .B apps
 List installed application IDs and names.
 .TP

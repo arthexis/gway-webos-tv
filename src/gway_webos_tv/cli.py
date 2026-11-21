@@ -74,6 +74,22 @@ def parser():
     actions = youtube.add_subparsers(dest="youtube_command")
     search = actions.add_parser("search", aliases=["s"], help="Search inside the TV's YouTube app")
     search.set_defaults(youtube_command="search")
+    random = actions.add_parser(
+        "random", aliases=["r"], help="Open an external random YouTube video service"
+    )
+    random.set_defaults(youtube_command="random")
+    random.add_argument(
+        "--service", choices=("random-video", "ytroulette", "obscuretube"),
+        default="random-video", help="Source catalog for random video discovery"
+    )
+    random.add_argument(
+        "--category", choices=("music", "sports", "gaming", "zero"),
+        help="YTRoulette category (not supported by other services)"
+    )
+    random.add_argument(
+        "--wait", type=seconds, default=argparse.SUPPRESS,
+        help="Browser foreground confirmation timeout"
+    )
     yts = commands.add_parser("yts", help="Search inside the TV's YouTube app")
     yts.set_defaults(command="youtube", youtube_command="search")
     for search_command, wait_default in ((search, argparse.SUPPRESS), (yts, 30)):
@@ -102,7 +118,10 @@ def normalize(args):
     elif command in ("screenshot", "sc", "screen"):
         command = "screen.capture"
     elif command == "youtube":
-        command = "youtube.search" if args.youtube_command == "search" else "youtube.open"
+        command = {
+            "search": "youtube.search",
+            "random": "youtube.random",
+        }.get(args.youtube_command, "youtube.open")
     params = {}
     if command == "inputs.select":
         params = {"number": args.number, "wait": args.wait}
@@ -114,17 +133,24 @@ def normalize(args):
         params = {"wait": args.wait}
         if command == "youtube.search":
             params["query"] = " ".join(args.query)
+        elif command == "youtube.random":
+            params["service"] = args.service
+            params["category"] = args.category
     return Operation(command, params)
 
 
 async def run(args):
     operation = normalize(args)
-    if operation.name.startswith("youtube."):
+    if operation.name in ("youtube.open", "youtube.search"):
         from .youtube import YouTube, validate_query
 
         if operation.name == "youtube.search":
             operation.params["query"] = validate_query(operation.params["query"])
         YouTube.check_dependencies()
+    if operation.name == "youtube.random":
+        from .randomizers import randomizer_url
+
+        randomizer_url(operation.params["service"], operation.params["category"])
     if operation.name == "pair.code":
         if args.json or not sys.stdout.isatty():
             raise TVError("Bridge pairing codes require a private interactive terminal.")
@@ -158,7 +184,7 @@ async def run(args):
                 "model": device.model,
                 "state_file": str(path),
             }
-        if operation.name.startswith("youtube."):
+        if operation.name in ("youtube.open", "youtube.search"):
             from .youtube import YouTube
         else:
             YouTube = None
@@ -176,6 +202,9 @@ def render(result):
             print(f"{item['id']}\t{item['title']}\tversion={item['version'] or 'unknown'}")
     elif "path" in result:
         print(result["path"])
+    elif "service" in result:
+        print(f"Randomizer {result['service']} opened in TV browser: {result['url']}")
+        print("Browser foreground confirmed; video playback was not verified.")
     elif result.get("screen"):
         if "query" in result:
             print(f"YouTube search results: {result['query']}")
