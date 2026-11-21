@@ -16,7 +16,7 @@ from .state import TVError, load_state
 
 MAX_MESSAGE = 65536
 READ = frozenset({"status", "inputs.list", "apps.list"})
-EXECUTE = frozenset({"inputs.select", "apps.launch", "screen.capture", "youtube.open", "youtube.search"})
+EXECUTE = frozenset({"inputs.select", "apps.launch", "screen.capture", "youtube.open", "youtube.search", "youtube.random"})
 TOOLS = (
     {"name": "read", "description": "Read webOS TV status, inputs or installed applications.",
      "inputSchema": {"type": "object", "properties": {"operation": {"type": "string", "enum": sorted(READ)}},
@@ -29,6 +29,8 @@ TOOLS = (
          "app_id": {"type": "string", "minLength": 1, "maxLength": 256},
          "wait": {"type": "number", "exclusiveMinimum": 0, "maximum": 120},
          "query": {"type": "string", "minLength": 1, "maxLength": 120},
+         "service": {"type": "string", "enum": ["random-video", "ytroulette", "obscuretube"]},
+         "category": {"type": "string", "enum": ["music", "sports", "gaming", "zero"]},
          },
          "required": ["operation"], "additionalProperties": False},
      "annotations": {"readOnlyHint": False}, "required_scope": "gway:execute"},
@@ -47,6 +49,7 @@ def validate(name, arguments):
         "inputs.select": {"number", "wait"}, "apps.launch": {"app_id", "wait"},
         "screen.capture": set(), "youtube.open": {"wait"},
         "youtube.search": {"query", "wait"},
+        "youtube.random": {"service", "category", "wait"},
     }[operation]
     supplied = set(arguments) - {"operation"}
     if not supplied <= expected:
@@ -68,6 +71,10 @@ def validate(name, arguments):
         query = params.get("query")
         if type(query) is not str or not 1 <= len(query) <= 120:
             raise ValueError("invalid_arguments")
+    if operation == "youtube.random":
+        from .randomizers import randomizer_url
+
+        randomizer_url(params.get("service", "random-video"), params.get("category"))
     return Operation(operation, params)
 
 
@@ -79,7 +86,7 @@ async def execute_operation(operation):
     try:
         await tv.connect(pair=False)
         youtube_factory = None
-        if operation.name.startswith("youtube."):
+        if operation.name in ("youtube.open", "youtube.search"):
             from .youtube import YouTube, validate_query
             if operation.name == "youtube.search":
                 operation.params["query"] = validate_query(operation.params["query"])
