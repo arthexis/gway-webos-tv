@@ -8,7 +8,7 @@ from .state import TVError
 
 OPERATIONS = frozenset({
     "pair", "pair.code", "status", "inputs.list", "inputs.select",
-    "apps.list", "apps.launch", "screen.capture", "youtube.open", "youtube.search",
+    "apps.list", "apps.launch", "screen.capture", "youtube.open", "youtube.search", "youtube.random",
 })
 
 
@@ -47,6 +47,14 @@ async def dispatch(tv, operation, *, save_capture=None, youtube_factory=None):
         data, extension = await tv.capture()
         output = save_capture(data, extension, params.get("output"))
         return {"path": str(output), "bytes": len(data), "source": "tv", "format": extension[1:]}
+    if name == "youtube.random":
+        from .randomizers import randomizer_url
+
+        service = params.get("service", "random-video")
+        category = params.get("category")
+        url = randomizer_url(service, category)
+        browser = await tv.open_browser(url, params.get("wait", 30))
+        return {"service": service, "category": category, "url": url, **browser}
     if name in ("youtube.open", "youtube.search"):
         if youtube_factory is None:
             raise TVError("YouTube requires an explicit handler.")
