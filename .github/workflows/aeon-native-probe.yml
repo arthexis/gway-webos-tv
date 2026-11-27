@@ -1,0 +1,19 @@
+name: AEon native probe
+on:
+  pull_request:
+    paths:
+      - 'experiments/aeon-rpg-player/**'
+      - '.github/workflows/aeon-native-probe.yml'
+permissions:
+  contents: read
+jobs:
+  host-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host-only dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev ruby
+      - name: Verify native input logic, SDL smoke and RGSS fixture
+        run: |
+          ruby --version
+          sh experiments/aeon-rpg-player/check.sh
