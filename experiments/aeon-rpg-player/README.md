@@ -23,3 +23,13 @@ The SDL GameController probe selects the first recognized device, maps position-
 4. Pair SN30/SN30 Pro via normal TV settings using supported controller mode. Verify physical labels, focus, disconnect/reconnect, duplicate system navigation, dead zone. Allow SDL-webOS polling delay. USB fallback is a separate result. Physical acceptance BLOCKED, not FAIL. No root or Bluetooth stack modifications.
 
 References: https://www.webosbrew.org/develop/guides/native/gamepad/ ; https://www.webosbrew.org/develop/guides/native/ ; https://docs.libretro.com/library/mkxp-z/ .
+
+## Second increment: distribution reference
+
+`game_store.py` is a Linux host-side reference, not code installed on webOS. The manifest specifies game ID, title, engine, version, ZIP SHA-256, Game.ini entry, and input profile. It stages verified ZIP contents in an isolated directory, rejects traversal, symlinks, reserved paths and case collisions, retains releases, atomically selects a version and provides a separate saves directory. `select` rolls back and `deactivate` hides a game without removing saves. The caller must provide a manifest from the authorized distribution channel and a private library root; this is not signature verification, tamper-proof storage, or power-loss durability. The engine still must be adapted to write saves there instead of in the game directory. `check.sh` runs the reference tests. No private game data is copied.
+
+### Live reachability recheck
+
+Original CI 46000110835 and native probe 46000111061 both PASS. Existing Node 24 CLI works with NODE_OPTIONS=--no-addons; `ares-device --device lab-tv --system-info` now runs but times out. Saved profile TCP 3001 fails with EHOSTUNREACH; 9922 times out; route is eth0, neighbor FAILED, and bounded SSDP MediaRenderer discovery had zero replies. Current target identity, ABI and firmware remain unverified. No profile, credentials, network or services changed. Operator: turn on the TV, verify its network and Developer Mode session, confirm the saved address still matches before any profile update. Do not re-pair or renew a key merely because the host cannot reach it.
+
+The unofficial native-toolchain publishes an ARM64-host/ARM-target SDK; RetroArch also has distinct ARM and AArch64 builds. Do not infer the target ABI from gway-001 (AArch64) or the webOS SDK version. A published mkxp-z libretro core is not proof of a compatible prebuilt webOS core. References: https://github.com/webosbrew/native-toolchain ; https://www.webosbrew.org/develop/guides/native-app/ ; https://github.com/libretro/RetroArch/blob/master/.github/workflows/webOS.yml .

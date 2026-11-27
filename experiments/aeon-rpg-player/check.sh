@@ -18,4 +18,5 @@ if command -v ruby >/dev/null 2>&1; then
 else
   echo 'Fixture generation SKIPPED (Ruby unavailable)' >&2
 fi
+python3 -m unittest -v test_game_store
 echo 'Host SDL smoke and input tests PASS'
