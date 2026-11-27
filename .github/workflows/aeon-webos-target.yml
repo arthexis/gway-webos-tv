@@ -1,0 +1,43 @@
+name: AEon webOS target
+on:
+  pull_request:
+    paths:
+      - 'experiments/aeon-rpg-player/**'
+      - '.github/workflows/aeon-webos-target.yml'
+permissions:
+  contents: read
+jobs:
+  arm-probe:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.2'
+      - name: Acquire pinned webOS ARM SDK
+        run: |
+          mkdir -p "$RUNNER_TEMP/webos-sdk"
+          cd "$RUNNER_TEMP/webos-sdk"
+          f=arm-webos-linux-gnueabi_sdk-buildroot_linux-aarch64.tar.bz2
+          curl -fLsS --retry 2 -o "$f" "https://github.com/webosbrew/native-toolchain/releases/download/webos-d7ed7ee.6/$f"
+          echo "45a2d12ff557457d92cde4fddaa77a6f1090fca03adc43bb74397e5e0c379501  $f" | sha256sum -c
+          tar -xjf "$f"
+          cd arm-webos-linux-gnueabi_sdk-buildroot
+          ./relocate-sdk.sh
+          echo "WEBOS_SDK=$PWD" >> "$GITHUB_ENV"
+      - name: Install pinned packaging CLI
+        run: |
+          npm install --prefix "$RUNNER_TEMP/webos-cli" @webos-tools/cli@3.2.6
+          echo "WEBOS_CLI_DIR=$RUNNER_TEMP/webos-cli/node_modules/@webos-tools/cli/bin" >> "$GITHUB_ENV"
+          echo "WEBOS_NODE_BIN=$(command -v node)" >> "$GITHUB_ENV"
+      - name: Build and verify native IPK (no deployment)
+        run: |
+          mkdir -p "$RUNNER_TEMP/aeon-probe"
+          OUTPUT_DIR="$RUNNER_TEMP/aeon-probe" sh experiments/aeon-rpg-player/build_webos_probe.sh
+          cd "$RUNNER_TEMP/aeon-probe"
+          sha256sum *.ipk > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aeon-webos-arm-input-probe
+          path: ${{ runner.temp }}/aeon-probe/
+          if-no-files-found: error
