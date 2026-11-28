@@ -112,10 +112,26 @@ replace('runloop.c','   last_input                       = current_bits;',
             !menu_was_alive && VIDEO_HAS_FOCUS(video_st), current_time))
       {
          const char *msg = aeon_voice_send('C')
-            ? "Voice Edit requested - dry run"
+            ? "Voice Edit requested - awaiting host"
             : "Voice Edit unavailable for this game";
          runloop_msg_queue_push(msg, strlen(msg), 1, 180, false,
                NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
+      }
+      {
+         static char previous=0;
+         static int64_t next_status=0;
+         char state=aeon_voice_state();
+         if(state!=previous || (state=='L' && current_time>=next_status))
+         {
+            const char *msg=state=='L' ? "VOICE EDIT - LISTENING" :
+                state=='S' ? "Voice Edit stopped" :
+                state=='P' ? "Voice Edit connecting / pending" :
+                "Voice Edit unavailable / disconnected";
+            if(aeon_voice_fd()>=0)
+               runloop_msg_queue_push(msg, strlen(msg), 2, state=='L'?120:180, true,
+                  NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
+            previous=state;next_status=current_time+1000000;
+         }
       }
    }""")
 replace('menu/menu_displaylist.c',
@@ -140,9 +156,9 @@ replace('menu/drivers/rgui.c',
    {
       if (action == MENU_ACTION_OK && entry->enum_idx == MENU_ENUM_LABEL_HELP_LIST)
       {
-         rgui_set_message(rgui, aeon_voice_send('M')
-               ? "Voice Edit requested - dry run"
-               : "Voice Edit unavailable for this game");
+         if (aeon_voice_send('M'))
+            return MENU_ACTION_RESUME;
+         rgui_set_message(rgui, "Voice Edit unavailable for this game");
          return MENU_ACTION_NOOP;
       }
       switch (action)""")

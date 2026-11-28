@@ -154,6 +154,9 @@ class ScopedVoice:
         tv = self.tv_factory()
         try:
             await tv.connect()
+            # Menu trigger resumes gameplay before capture; foreground check alone
+            # cannot distinguish a game frame from a menu.
+            await asyncio.sleep(.4)
             receipt = await capture_context(tv, context)
         finally:
             await tv.close()
@@ -184,8 +187,15 @@ class ScopedVoice:
         if self.directory is None:
             return False
         try:
-            return bool(LISTENING.search(await self.pane()))
-        except VoiceDenied:
+            if not LISTENING.search(await self.pane()):
+                return False
+            tv = self.tv_factory()
+            try:
+                await tv.connect()
+                return await tv.call(tv.client.get_current_app()) == APP
+            finally:
+                await tv.close()
+        except Exception:
             return False
 
     async def stop(self):

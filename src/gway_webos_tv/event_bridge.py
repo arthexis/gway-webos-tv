@@ -254,8 +254,8 @@ class Bridge:
                             if isinstance(value, str) and re.fullmatch(r"[0-9]{6}", value):
                                 digest = hashlib.sha256((salt + value).encode()).hexdigest()
                                 valid = hmac.compare_digest(digest, expected) and (
-                                    pending.get("app") == app == "aeon-player"
-                                    or pending.get("app") is None and app in ("remote-test", "gway-monitor")
+                                    pending.get("app") == app == "aeon-player" and ws.request.path == "/aeon/pair"
+                                    or pending.get("app") is None and app in ("remote-test", "gway-monitor") and ws.request.path != "/aeon/pair"
                                 )
                     except (OSError, ValueError, KeyError, TypeError):
                         pass

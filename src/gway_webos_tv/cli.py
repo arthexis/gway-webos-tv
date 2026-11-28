@@ -131,7 +131,8 @@ async def run(args):
             raise TVError("Bridge pairing codes require a private interactive terminal.")
         from .event_bridge import open_local_pairing_window
 
-        code = open_local_pairing_window(getattr(args, "app", None))
+        app = getattr(args, "app", None)
+        code = open_local_pairing_window(app) if app else open_local_pairing_window()
         print("Enter this code on the TV within two minutes:", code, flush=True)
         return None
     pairing = operation.name == "pair"

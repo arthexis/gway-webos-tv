@@ -13,6 +13,7 @@
 #include <SDL.h>
 #include <fcntl.h>
 #include "voice_intent.h"
+#include "voice_relay.h"
 #include "library_menu.h"
 
 static void die(const char *what) { perror(what); exit(1); }
@@ -26,38 +27,53 @@ static void directory(const char *p) {
     if(lstat(p,&st)<0 || !S_ISDIR(st.st_mode) || st.st_uid!=getuid() || (st.st_mode & 0077)) { errno=EACCES; die(p); }
 }
 extern char **environ;
-struct playback { const char *frontend,*cfg,*core,*menu_cfg,*editable; };
+struct playback { const char *frontend,*cfg,*core,*menu_cfg,*editable; struct voice_settings voice; };
+static int pair_voice(const char *code,void *context) {
+    struct playback *p=context;
+    return voice_pair(&p->voice,code);
+}
 static int play_game(const char *content,void *context) {
     struct playback *p=context;
     char *const args[]={(char *)p->frontend,"--config",(char *)p->cfg,"--appendconfig",(char *)p->menu_cfg,"-L",(char *)p->core,(char *)content,NULL};
-    int channel[2]={-1,-1}, received=0;
+    int channel[2]={-1,-1};
+    struct voice_relay relay={.fd=-1};
     unsetenv(AEON_VOICE_FD);
-    if (!strcmp(content,p->editable) && socketpair(AF_UNIX,SOCK_DGRAM,0,channel)==0) {
+    if (!strcmp(content,p->editable) && voice_spawn(&relay,&p->voice,content,NULL) && socketpair(AF_UNIX,SOCK_DGRAM,0,channel)==0) {
         char fdstr[32];
         snprintf(fdstr,sizeof fdstr,"%d",channel[1]);
         if (fcntl(channel[0],F_SETFD,FD_CLOEXEC)<0 || setenv(AEON_VOICE_FD,fdstr,1)<0) {
             close(channel[0]);close(channel[1]);channel[0]=channel[1]=-1;
         }
     }
+    if(channel[0]<0)voice_close(&relay);
     pid_t pid;
     int error=posix_spawn(&pid,p->frontend,NULL,NULL,args,environ);
     unsetenv(AEON_VOICE_FD);
     if(channel[1]>=0)close(channel[1]);
-    if(error){if(channel[0]>=0)close(channel[0]);errno=error;perror("retroarch");return -1;}
+    if(error){voice_close(&relay);if(channel[0]>=0)close(channel[0]);errno=error;perror("retroarch");return -1;}
     int status=0,closing=0;
     Uint32 started=0;
     for(;;){
         if(channel[0]>=0)for(int i=0;i<8;i++){
             char source;int event=aeon_voice_receive(channel[0],&source);
             if(!event)break;
-            if(event==1 && received<16){
-                received++;
-                fprintf(stderr,"AEON VOICE DRY RUN game=lantern-gate source=%s sequence=%d\n",source=='M'?"menu":"chord",received);
+            if(event==1 && (relay.fd<0 || send(relay.fd,&source,1,MSG_DONTWAIT|MSG_NOSIGNAL)!=1)){
+                char u='U';send(channel[0],&u,1,MSG_DONTWAIT|MSG_NOSIGNAL);
+                voice_close(&relay);
             }
+        }
+        if(relay.fd>=0)for(int i=0;i<8;i++){
+            char b;ssize_t n=recv(relay.fd,&b,1,MSG_DONTWAIT);
+            if(n==1 && (b=='S'||b=='P'||b=='L'||b=='U')){
+                if(send(channel[0],&b,1,MSG_DONTWAIT|MSG_NOSIGNAL)!=1){voice_close(&relay);break;}
+            }else if(n==0 || n==1 || (n<0 && errno!=EAGAIN && errno!=EWOULDBLOCK && errno!=EINTR)){
+                char u='U';send(channel[0],&u,1,MSG_DONTWAIT|MSG_NOSIGNAL);
+                voice_close(&relay);break;
+            }else break;
         }
         pid_t result=waitpid(pid,&status,WNOHANG);
         if(result==pid)break;
-        if(result<0 && errno!=EINTR){if(channel[0]>=0)close(channel[0]);perror("waitpid");return -1;}
+        if(result<0 && errno!=EINTR){voice_close(&relay);if(channel[0]>=0)close(channel[0]);perror("waitpid");return -1;}
         SDL_Event e;
         while(SDL_PollEvent(&e)){
             if(e.type==SDL_QUIT && !closing){
@@ -67,6 +83,7 @@ static int play_game(const char *content,void *context) {
         if(closing && SDL_GetTicks()-started>3000)kill(pid,SIGKILL);
         SDL_Delay(25);
     }
+    voice_close(&relay);
     if(channel[0]>=0)close(channel[0]);
     if(closing)return 1;
     if(!WIFEXITED(status)||WEXITSTATUS(status)!=0)return -1;
@@ -94,6 +111,7 @@ int main(void) {
     if(setenv("LD_LIBRARY_PATH",lib,1)<0 || chdir(app)<0) die("frontend environment");
     path(menu_cfg,app,"aeon-menu.cfg");
     char editable[PATH_MAX]; path(editable,app,"library/AEon-Lantern-Gate.mkxpz");
-    struct playback p={frontend,cfg,core,menu_cfg,editable};
-    return aeon_library_menu(app,games,play_game,&p)<0?1:0;
+    struct playback p={.frontend=frontend,.cfg=cfg,.core=core,.menu_cfg=menu_cfg,.editable=editable};
+    voice_config(&p.voice,app,root);
+    return aeon_library_menu(app,games,play_game,p.voice.configured?pair_voice:NULL,&p)<0?1:0;
 }
