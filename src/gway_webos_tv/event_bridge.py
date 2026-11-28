@@ -16,6 +16,7 @@ from pathlib import Path
 
 from websockets.asyncio.server import serve
 
+from .aeon_voice import VoiceConnection, VoiceDenied, VoiceSession
 from .image_folders import scan_folders
 from .image_roll import image_data, images
 from .monitor import snapshot
@@ -78,8 +79,9 @@ def button_name(path, code):
 
 
 class Bridge:
-    def __init__(self, directory, names_path=None):
+    def __init__(self, directory, names_path=None, voice=None):
         self.directory = directory
+        self.voice = voice if voice is not None else VoiceSession()
         self.names_path = names_path if names_path is not None else button_names_path()
         self.lock = asyncio.Lock()
         self.monitor_lock = asyncio.Lock()
@@ -129,7 +131,57 @@ class Bridge:
         except (OSError, ValueError, TypeError, AttributeError):
             return False
 
+    def voice_authorized(self, digest):
+        # Unlike legacy button auth, a dedicated explicit scope is mandatory.
+        try:
+            scoped = json.loads((self.directory / "credential.json").read_text()).get("scoped", {})
+            return isinstance(scoped, dict) and isinstance(scoped.get(digest), list) and "aeon.voice" in scoped[digest]
+        except (OSError, ValueError, TypeError, AttributeError):
+            return False
+
+    async def voice_handler(self, ws):
+        connection = secrets.token_hex(16)
+        try:
+            message = json.loads(await asyncio.wait_for(ws.recv(), 10))
+            if not isinstance(message, dict) or set(message) != {"type", "credential"}:
+                await ws.close(1008, "Authentication required")
+                return
+            value = message["credential"]
+            if message["type"] != "auth" or not isinstance(value, str):
+                await ws.close(1008, "Authentication required")
+                return
+            digest = hashlib.sha256(value.encode()).hexdigest()
+            if not self.voice_authorized(digest):
+                await ws.close(1008, "Capability denied")
+                return
+            client = VoiceConnection(self.voice, digest, connection)
+            await ws.send(json.dumps({"type": "aeon.voice.ready", "connection": connection}))
+            while True:
+                await self.voice.expire()
+                if not self.voice_authorized(digest):
+                    await ws.close(1008, "Credential revoked")
+                    return
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), 1)
+                except asyncio.TimeoutError:
+                    continue
+                if not self.voice_authorized(digest):
+                    await ws.close(1008, "Credential revoked")
+                    return
+                try:
+                    response = await client.dispatch(json.loads(raw))
+                except VoiceDenied as exc:
+                    response = {"type": "aeon.voice.error", "error": str(exc)}
+                await ws.send(json.dumps(response))
+        except (ValueError, OSError, asyncio.TimeoutError):
+            await ws.close(1008, "Invalid voice request")
+        finally:
+            await self.voice.disconnect(connection)
+
     async def handler(self, ws):
+        if ws.request.path == "/aeon/voice":
+            await self.voice_handler(ws)
+            return
         try:
             raw = await asyncio.wait_for(ws.recv(), 10)
             message = json.loads(raw)
