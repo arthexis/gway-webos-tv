@@ -1,0 +1,112 @@
+name: AEon webOS core candidate
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/aeon-webos-core.yml'
+permissions:
+  contents: read
+env:
+  ENGINE_REV: ef4d336850bf749b531386522109a165c002354b
+jobs:
+  stage1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: mkxp-z/mkxp-z
+          ref: ${{ env.ENGINE_REV }}
+          persist-credentials: false
+          submodules: recursive
+          path: engine
+      - name: Install host build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential automake libtool zip universal-ctags ruby
+      - name: Acquire pinned stage-one tools
+        run: |
+          mkdir -p "$RUNNER_TEMP/wasi-sdk" "$RUNNER_TEMP/binaryen"
+          curl -fLsS --retry 2 https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-30/wasi-sdk-30.0-x86_64-linux.tar.gz -o "$RUNNER_TEMP/wasi-sdk.tar.gz"
+          curl -fLsS --retry 2 https://github.com/WebAssembly/binaryen/releases/download/version_126/binaryen-version_126-x86_64-linux.tar.gz -o "$RUNNER_TEMP/binaryen.tar.gz"
+          echo "0507679dff16814b74516cd969a9b16d2ced1347388024bc7966264648c78bfb  $RUNNER_TEMP/wasi-sdk.tar.gz" | sha256sum -c
+          echo "e487e0eac1f02a6739816c617270b033e5d3f8ca90439301fd0286460322fd76  $RUNNER_TEMP/binaryen.tar.gz" | sha256sum -c
+          tar -xzf "$RUNNER_TEMP/wasi-sdk.tar.gz" -C "$RUNNER_TEMP/wasi-sdk" --strip-components=1
+          tar -xzf "$RUNNER_TEMP/binaryen.tar.gz" -C "$RUNNER_TEMP/binaryen" --strip-components=1
+      - name: Build upstream stage one
+        working-directory: engine/libretro
+        run: |
+          test "$(git rev-parse HEAD)" = "$ENGINE_REV"
+          make -j2 WASI_SDK="$RUNNER_TEMP/wasi-sdk" WASM_OPT="$RUNNER_TEMP/binaryen/bin/wasm-opt"
+          tar -C build/libretro-stage1 -czf "$RUNNER_TEMP/stage1.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aeon-libretro-stage1
+          path: ${{ runner.temp }}/stage1.tar.gz
+          if-no-files-found: error
+  arm-core:
+    needs: stage1
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: mkxp-z/mkxp-z
+          ref: ${{ env.ENGINE_REV }}
+          persist-credentials: false
+          submodules: recursive
+          path: engine
+      - uses: actions/download-artifact@v4
+        with:
+          name: aeon-libretro-stage1
+          path: ${{ runner.temp }}/stage1
+      - name: Install native build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential meson ninja-build cmake pkg-config
+      - name: Acquire pinned ARM SDK
+        run: |
+          mkdir "$RUNNER_TEMP/webos-sdk"
+          cd "$RUNNER_TEMP/webos-sdk"
+          f=arm-webos-linux-gnueabi_sdk-buildroot_linux-aarch64.tar.bz2
+          curl -fLsS --retry 2 -o "$f" "https://github.com/webosbrew/native-toolchain/releases/download/webos-d7ed7ee.6/$f"
+          echo "45a2d12ff557457d92cde4fddaa77a6f1090fca03adc43bb74397e5e0c379501  $f" | sha256sum -c
+          tar -xjf "$f"
+          cd arm-webos-linux-gnueabi_sdk-buildroot
+          ./relocate-sdk.sh
+          echo "WEBOS_SDK=$PWD" >> "$GITHUB_ENV"
+      - name: Configure ARM32 libretro core
+        working-directory: engine
+        run: |
+          test "$(git rev-parse HEAD)" = "$ENGINE_REV"
+          mkdir -p libretro/build/libretro-stage1
+          tar -xzf "$RUNNER_TEMP/stage1/stage1.tar.gz" -C libretro/build/libretro-stage1
+          cat > "$RUNNER_TEMP/cross.ini" <<CROSS
+          [binaries]
+          c = '$WEBOS_SDK/bin/arm-webos-linux-gnueabi-gcc'
+          cpp = '$WEBOS_SDK/bin/arm-webos-linux-gnueabi-g++'
+          ar = '$WEBOS_SDK/bin/arm-webos-linux-gnueabi-ar'
+          cmake = 'cmake'
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'arm'
+          cpu = 'generic-armv7-a+neon'
+          endian = 'little'
+          CROSS
+          meson setup build --cross-file "$RUNNER_TEMP/cross.ini" --buildtype release -Db_lto=false -Dstatic_libstdcpp=true -Dneon=false -Dc_args=-fno-tree-vectorize -Dcpp_args=-fno-tree-vectorize -Dlibretro=true -Dlibretro_save_states=true
+      - name: Compile and inspect core (no deployment)
+        working-directory: engine
+        run: |
+          ninja -C build -j2
+          mkdir "$RUNNER_TEMP/core"
+          "$WEBOS_SDK/bin/arm-webos-linux-gnueabi-strip" -o "$RUNNER_TEMP/core/mkxp-z_libretro.so" build/mkxp-z_libretro.so
+          cp COPYING "$RUNNER_TEMP/core/COPYING"
+          cd "$RUNNER_TEMP/core"
+          readelf -h mkxp-z_libretro.so | tee elf-header.txt
+          grep -E 'Class:.*ELF32' elf-header.txt
+          grep -E 'Machine:.*ARM$' elf-header.txt
+          readelf -d mkxp-z_libretro.so | tee elf-dynamic.txt
+          readelf --dyn-syms --wide mkxp-z_libretro.so > elf-symbols.txt
+          for symbol in retro_init retro_load_game retro_run retro_set_environment retro_serialize; do grep -E "[[:space:]]$symbol$" elf-symbols.txt; done
+          printf '%s\n' "$ENGINE_REV" > ENGINE_REVISION
+          sha256sum mkxp-z_libretro.so > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aeon-webos-arm-core-candidate
+          path: ${{ runner.temp }}/core/
+          if-no-files-found: error

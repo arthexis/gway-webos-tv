@@ -1,0 +1,62 @@
+name: AEon webOS pause frontend
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/aeon-webos-pause-frontend.yml'
+      - 'experiments/aeon-rpg-player/patch_frontend.py'
+      - 'experiments/aeon-rpg-player/select_hold.h'
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: webosbrew/RetroArch
+          ref: 4c4953bf331348263cd68df0b654cf00583b437a
+          path: frontend
+          persist-credentials: false
+      - name: Apply reviewed patch and verify hold timer
+        run: |
+          d=experiments/aeon-rpg-player
+          test "$(git -C frontend rev-parse HEAD)" = 4c4953bf331348263cd68df0b654cf00583b437a
+          cc -std=c99 -Wall -Wextra -Werror "$d/test_select_hold.c" -o "$RUNNER_TEMP/select-hold"
+          "$RUNNER_TEMP/select-hold"
+          python3 "$d/patch_frontend.py" frontend
+          git -C frontend diff --check
+      - name: Acquire pinned ARM SDK
+        run: |
+          mkdir "$RUNNER_TEMP/webos-sdk"
+          cd "$RUNNER_TEMP/webos-sdk"
+          f=arm-webos-linux-gnueabi_sdk-buildroot_linux-aarch64.tar.bz2
+          curl -fLsS --retry 2 -o "$f" "https://github.com/webosbrew/native-toolchain/releases/download/webos-d7ed7ee.6/$f"
+          echo "45a2d12ff557457d92cde4fddaa77a6f1090fca03adc43bb74397e5e0c379501  $f" | sha256sum -c
+          tar -xjf "$f"
+          cd arm-webos-linux-gnueabi_sdk-buildroot
+          ./relocate-sdk.sh
+          echo "WEBOS_SDK=$PWD" >> "$GITHUB_ENV"
+      - name: Compile frontend only (GLES2)
+        working-directory: frontend
+        run: |
+          . "$WEBOS_SDK/environment-setup"
+          make -f Makefile.webos -j2 retroarch
+          mkdir "$RUNNER_TEMP/aeon-frontend"
+          cp retroarch "$RUNNER_TEMP/aeon-frontend/"
+          cp COPYING "$RUNNER_TEMP/aeon-frontend/"
+          git diff > "$RUNNER_TEMP/aeon-frontend/frontend.patch"
+          cp input/aeon_select_hold.h "$RUNNER_TEMP/aeon-frontend/"
+          cd "$RUNNER_TEMP/aeon-frontend"
+          readelf -h retroarch | tee elf-header.txt
+          grep -E 'Class:.*ELF32' elf-header.txt
+          grep -E 'Machine:.*ARM$' elf-header.txt
+          readelf -d retroarch | tee elf-dynamic.txt
+          readelf -l retroarch | grep -F '/lib/ld-linux.so.3]'
+          sha256sum retroarch COPYING frontend.patch aeon_select_hold.h > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aeon-webos-pause-frontend
+          path: ${{ runner.temp }}/aeon-frontend/
+          if-no-files-found: error

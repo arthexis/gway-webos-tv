@@ -1,0 +1,97 @@
+# AEon RPG Player: native feasibility probe (#51)
+
+This experiment is **not** the finished player. It remains outside `apps/` to avoid automatic deployment. Host binaries are not TV artifacts.
+
+## Evidence (2026-11-27, gway-001)
+
+- `~/planet-aeon-lab/mkxp-z`: `a8f9d9ee331034b7778d0f6c3a5603de8b87388f`; game: `dd18e021a5fabc390f7680dd0f7bfc0abb5250a1`. Game.ini confirms RGSS3 and RPGVXAce RTP. No finished executable or build.ninja found in the inspected engine build directories; prior runtime acceptance unverified.
+- Federated webOS discovery available; status `provider_unavailable`. Existing CLI reports `Cannot establish a TLS connection to the TV.` Developer profile `lab-tv` exists, but device-info help invocation segfaulted in bounded execution. This does not establish an expired session. No pairing, wake, repair or deployment attempted.
+- `docs/lab-tv.md` records **Hyundai HYLED3256WiM**, SDK 8.4.9 and firmware 13.48.30 (2026-11-05). Reconfirm model, firmware and CPU ABI; LG compatibility does not establish Hyundai behavior.
+- Host SDL 2.26.5 build and headless smoke pass. Ruby unavailable locally; fixture validation is delegated to CI. No RGSS execution claimed.
+
+## First increment
+
+`sh experiments/aeon-rpg-player/check.sh` compiles and runs input unit tests and SDL host smoke. CI also generates and decodes the minimal original VX Ace fixture. To generate it, run `ruby generate_fixture.rb /path/to/new-game-dir`. It contains Game.ini and generated Scripts.rvdata2, no proprietary RTP. With a verified RGSS3 engine, D-pad moves a square, confirm toggles color and cancel exits. Not yet executed on a TV.
+
+The SDL GameController probe selects the first recognized device, maps position-based face buttons to physical SNES labels, applies dead zone and clears state on focus loss. It detects hotplug, prints logical button transitions and displays their state. Keyboard: arrows, Enter (A), Backspace (B), X, Y, L, R, S (Start), Tab (Select). Unmapped devices are reported, not guessed. Per-game remapping, raw event diagnostics and persistent library remain open.
+
+## Target gate
+
+1. Restore status through the existing paired provider; confirm model, firmware, ABI and Developer Mode. Review #13, #39 and #43 before creating an independent runtime repository. No automatic registration.
+2. Pin compatible native toolchain/sysroot and SDL-webOS release with verified checksums. Cross-compile using target compiler and target SDL pkg-config; validate ELF ABI and dependencies before staging an explicit native IPK with unique app ID. Document checksum and test installation without affecting existing apps. Target IPK is BLOCKED, no placeholder.
+3. Compare pinned mkxp-z standalone and libretro target compilation; libretro supports GLES2 but target core availability is not established. Validate original fixture first, then Planet Aeon. Verify RTP licenses and separate engine and saves.
+4. Pair SN30/SN30 Pro via normal TV settings using supported controller mode. Verify physical labels, focus, disconnect/reconnect, duplicate system navigation, dead zone. Allow SDL-webOS polling delay. USB fallback is a separate result. Physical acceptance BLOCKED, not FAIL. No root or Bluetooth stack modifications.
+
+References: https://www.webosbrew.org/develop/guides/native/gamepad/ ; https://www.webosbrew.org/develop/guides/native/ ; https://docs.libretro.com/library/mkxp-z/ .
+
+## Second increment: distribution reference
+
+`game_store.py` is a Linux host-side reference, not code installed on webOS. The manifest specifies game ID, title, engine, version, ZIP SHA-256, Game.ini entry, and input profile. It stages verified ZIP contents in an isolated directory, rejects traversal, symlinks, reserved paths and case collisions, retains releases, atomically selects a version and provides a separate saves directory. `select` rolls back and `deactivate` hides a game without removing saves. The caller must provide a manifest from the authorized distribution channel and a private library root; this is not signature verification, tamper-proof storage, or power-loss durability. The engine still must be adapted to write saves there instead of in the game directory. `check.sh` runs the reference tests. No private game data is copied.
+
+### Live reachability recheck
+
+Original CI 46000110835 and native probe 46000111061 both PASS. Existing Node 24 CLI works with NODE_OPTIONS=--no-addons; `ares-device --device lab-tv --system-info` now runs but times out. Saved profile TCP 3001 fails with EHOSTUNREACH; 9922 times out; route is eth0, neighbor FAILED, and bounded SSDP MediaRenderer discovery had zero replies. Current target identity, ABI and firmware remain unverified. No profile, credentials, network or services changed. Operator: turn on the TV, verify its network and Developer Mode session, confirm the saved address still matches before any profile update. Do not re-pair or renew a key merely because the host cannot reach it.
+
+The unofficial native-toolchain publishes an ARM64-host/ARM-target SDK; RetroArch also has distinct ARM and AArch64 builds. Do not infer the target ABI from gway-001 (AArch64) or the webOS SDK version. A published mkxp-z libretro core is not proof of a compatible prebuilt webOS core. References: https://github.com/webosbrew/native-toolchain ; https://www.webosbrew.org/develop/guides/native-app/ ; https://github.com/libretro/RetroArch/blob/master/.github/workflows/webOS.yml .
+
+### Live target recovered (2026-11-27)
+
+The saved LAN address had changed. A bounded check of existing LAN neighbors found the two expected TCP services. Existing SSAP certificate pin and model matched; only the address fields in the pairing and lab-tv developer profile were changed, preserving keys. Default SSAP, federated MCP, and Developer Mode now pass. Live model HYLED3256WiM, firmware 13.48.30, SDK 8.4.9, board KF23F_ATSC_US. `uname -m` = aarch64, `getconf LONG_BIT` = 32, interpreter `/lib/ld-linux.so.3`, non-root developer UID 6396. System SDL2, EGL and GLES2 present; developer storage ~760 MB free. Select ARM EABI 32-bit target, not ARM64 host binaries. The mkxp-z checkout supports a GLES build option but target dependencies and RGSS remain unbuilt.
+
+SDK tag `webos-d7ed7ee.6`, Linux AArch64 host archive SHA256 `45a2d12ff557457d92cde4fddaa77a6f1090fca03adc43bb74397e5e0c379501` (recorded from the official HTTPS release asset, not an independently published upstream digest). Local extraction timed out under the 60-second broker limit; no changes to limits. Target workflow uses a dedicated ARM GitHub runner, checks the pinned hash, relocates SDK, builds the unique native input probe IPK and publishes a CI artifact only. Install only after reviewing exact CI revision, ELF linkage and artifact checksum, using existing Developer Mode. This is not the mkxp-z runtime or a completed RPG player. No app has yet been installed by this change. Physical controller tests and full engine, native library UI, save redirection remain pending.
+
+### Physical input probe milestone
+
+PR #52 revision 68ba44c49e080249996fbbf91e225050d39487d0: all three CI runs passed (46003089424, 46003089646, 46003089631). Target artifact 15198683098, ZIP SHA-256 1491a8fadc2764e3edd15e26ffa70ed3c618e5711316376728de0cbe37ee4831, IPK SHA-256 1584f58dcc5efecd59159fbd059c03c38a3e5e235336e8ae1b1d83b46657eaa5. Both digests independently checked on gway-001. ELF32 ARM EABI5 soft-float, interpreter /lib/ld-linux.so.3, dependencies SDL2 and libc, GLIBC_2.4. Installed only com.arthexis.aeon.inputprobe 0.1.0 through authenticated Developer Mode; existing GWAY Monitor and Remote Test remain installed. MCP foreground confirmation and native TV screenshot (960x540) show the SDL controller diagram. No 8BitDo in visible kernel input inventory; pairing and physical button acceptance still pending. Probe remains in foreground for operator testing. No root or Bluetooth configuration changed.
+
+### Engine candidate
+
+Upstream mkxp-z libretro PR revision ef4d336850bf749b531386522109a165c002354b had a successful LR webOS job 73507352989 (run 25087335805 overall failed, no reusable webOS artifact). This is a separate experimental revision from the existing standalone checkout a8f9d9e. The new isolated core workflow reproduces its two-stage build with version-pinned WASI SDK 30 and Binaryen 126 (download hashes logged, not independently pinned yet), previously verified ARM SDK, ABI checks and libretro exports. No candidate core is deployed or claimed compatible until build, license/dependencies and native frontend/game acceptance pass. No proprietary assets are distributed.
+
+### First AEon player bundle (private lab evaluation)
+
+The operator located the TV's native Bluetooth controller pairing UI. Use that UI; in-app pairing/privileged services are no longer required for this increment. Actual 8BitDo input is still unverified. Do not change Bluetooth/audio configuration from the app.
+
+The original core run 46004673740 passed WASI stage one and ARM Meson configuration, but GCC crashed in FLAC window.c (vector multiply RTL). The corrective workflow disables NEON optimization, compiler tree vectorization and LTO, and verifies observed stage-one archive hashes. These are build compatibility changes, not a claim that audio works. The separate native frontend is webosbrew/RetroArch v1.22.2 ARM GLES2 IPK, upstream SHA256 `0b8ead78b49f02097986a14776d1d90ce856184a11290e8c3640f1001b02d4e3`; actual package downloaded and verified. ARM ELF EABI5 soft-float and GLIBC <= 2.31 checks passed for frontend and its three included libraries. TV getconf confirmed glibc 2.31. The package is distinct from stock RetroArch and existing GWay apps.
+
+Target CI produces `aeon-webos-player-inputs` (launcher and reproducible original fixture, with hashes) separately from the existing probe. Core CI produces `aeon-webos-arm-core-candidate` if successful. Download exact artifacts from successful reviewed revisions, verify the artifact digest and each SHA256SUMS, review core dependencies/exports and target GLIBC, and acquire RetroArch COPYING from the pinned tag. The operator-local assembly tool extracts only allowlisted files from the pinned frontend IPK, verifies component SHA-256 and ARM32 EABI/GLIBC, adds original icon, launcher, test fixture, license files and provenance, then calls the existing ares-package CLI:
+
+```sh
+python3 experiments/aeon-rpg-player/bundle_player.py \
+  --frontend /private/inputs/com.retroarch.webos_1.22.2_arm.ipk \
+  --core /private/inputs/mkxp-z_libretro.so --core-sha <verified-core-sha256> \
+  --launcher /private/inputs/launcher --launcher-sha <verified-launcher-sha256> \
+  --fixture /private/inputs/fixture.zip --fixture-sha <verified-fixture-sha256> \
+  --frontend-license /private/inputs/RetroArch-COPYING \
+  --core-license /private/inputs/mkxp-z-COPYING --output /private/new-output
+```
+
+The expected package is `com.arthexis.aeon.rpgplayer_0.1.0_arm.ipk`, assembled locally only (no automatic deployment or public combined package). The launcher boots the fixture through RetroArch, initializes separate `system`, `saves`, `states`, `games` and config paths under `/media/internal/.aeon-rpg-player` if writable, otherwise HOME. It refuses non-private or wrong-owner data directories; does not overwrite config. On the TV's developer SSH session `/media/developer` is not writable and `/media/internal` is writable; actual native jail write access and persistence across update/reinstall still require acceptance. RetroArch's content browser is the initial library interface; custom library UI, host store transport, secure updates and physical save/input tests are still open. The game checkout `dd18e02` has uncommitted RGSS script changes, lacks Audio/Graphics directories and declares RPGVXAce RTP. Do not distribute uncommitted game data or copyrighted RTP in CI; after fixture acceptance use an operator-reviewed private release and legally available RTP. RetroArch GPLv3 and core GPLv2 licensing and corresponding-source obligations need review before redistribution; this bundle is for private lab evaluation only.
+
+### Controller-first game library (0.2.0 candidate)
+
+Operator reported pairing the Bluetooth controller and completing The Lantern Gate; independent live input inventory identifies 8Bitdo SN30 Pro. This accepts the reported gameplay session, not every button, reconnect, audio or persistence scenario.
+
+The native launcher now displays an SDL game-selection menu before starting RetroArch. D-pad or left stick selects a row; physical SNES A confirms (SDL positional B), B exits (SDL positional A); keyboard arrows/Enter/Escape also work. Reconnect is polled without Bluetooth changes. The menu lists the original VX Ace fixture, bundled .mkxpz files under library/, and .mkxpz files in the existing private games directory, excluding symlinks. The first two entries are The Lantern Gate and VX Ace Test. Planet Aeon is not included until licensed assets are ready. This increment uses exec to hand off to the selected game; reopen AEon RPG Player to return to the library. In-app return, content import, per-game persistence and physical controller menu testing remain open.
+
+The target workflow compiles only the changed launcher against SDL2 and builds the original demo archive from source. The private update_library_bundle.py assembler requires the exact accepted 0.1.0 IPK and reviewed launcher/demo hashes, verifies ARM/glibc, preserves the engine/frontend and original fixture, adds the demo and version 0.2.0 metadata. Do not publish the combined package. Verify CI and artifact integrity, then use the existing Developer Mode to update only AEon RPG Player, leaving the separate demo and existing applications intact. Keep the original IPK for rollback.
+
+### Seamless transition candidate (0.2.1)
+
+Operator observed a brief flash of the TV home screen between library and game. In 0.2.0 the menu destroyed its SDL renderer/window before execv, leaving no app surface until RetroArch initialized. The candidate keeps the menu surface alive with a loading screen, releases the menu controller, starts the same frontend using posix_spawn, pumps native events and waits for the exact child process. On normal child exit the launcher raises and redraws the library; an abnormal exit returns with an error message. Explicit SDL quit terminates and reaps the owned child only. No root or system compositor modifications. This is a candidate mitigation: webOS multi-window/process behavior and absence of the home-screen flash require actual TV transition acceptance; host tests cannot prove that. Preserve 0.2.0 rollback and the accepted runtime binaries.
+
+### In-game Select menu (0.2.2 candidate)
+
+Operator reports 0.2.1 transition works better. Holding physical Select for three seconds opens the RetroArch quick menu, with Resume and Return to Game Library. The upstream frontend only implements a two-second hold, so this uses a source patch against webosbrew/RetroArch revision 4c4953bf331348263cd68df0b654cf00583b437a, not a core change. The timer uses monotonic frontend microseconds, fires once per uninterrupted hold, resets on release, and does not intentionally suppress normal short Select input. The menu pauses core execution. Close Content is relabeled and uses the normal graceful frontend quit command, letting the existing parent restore the library. Other quick menu entries remain available. No forced process termination on this menu action. The package-owned appendconfig activates the shortcut for existing installs without replacing the user's main config. Controller mapping, menu release behavior and return require physical testing.
+
+The dedicated frontend workflow builds only the modified frontend using the pinned ARM SDK and publishes binary, source diff, helper and checksums. Before installing 0.2.2 verify all target and host CI, frontend dependencies/symbol versions against the accepted bundled libraries, exact artifact hashes, source patch and package comparison. update_pause_bundle.py takes the exact 0.2.1 private IPK, new launcher and frontend and their reviewed hashes. Retain old core, games, libraries and rollback IPKs. Do not consume redundant automatically triggered mkxp-z builds or redistribute the private package. Native frontend build compatibility and physical acceptance are not yet established.
+
+### Two-action pause menu (0.2.3 candidate)
+
+Operator entered the 0.2.2 pause menu but could not find the library or exit it. Physical capture confirmed RetroArch's file browser (/media/), not the launcher. The revised frontend presents exactly Resume and Return to Game Library while a core is loaded. RGUI maps Cancel to Resume and suppresses unrelated actions in this quick menu. Up/Down and OK remain standard. Explicit package configuration selects RGUI and physical RetroPad A confirm/B cancel. The existing three-second Select timer and graceful quit action are unchanged. This avoids exposing restart, settings, or browser navigation in the normal in-game pause path. Closing content exits the child; the existing launcher restores the library. Existing 0.2.2 main config and games are retained. The source patch was applied against the exact pinned upstream files; ARM CI and physical menu navigation still require acceptance. The private update_simple_pause_bundle.py takes the verified 0.2.2 IPK and new frontend hash; reuses the launcher, core and games, no launcher or core rebuild is needed. Preserve both rollback packages. Do not interrupt the operator's existing game session to test.
+
+The 0.2.3 candidate also makes a fresh Select tap resume gameplay from the pause screen. The state machine is integrated at the existing runloop menu-toggle path, using the current menu visibility, rather than the generic button-combo helper. Changing menu visibility while Select is held consumes that press until release; release itself never resumes. A normal short gameplay Select press cannot open the menu. Start is not bound to AEon actions and retains normal game semantics. Tests cover the 3-second boundary, release, fresh tap, holding through both transitions, and external menu opening while held. Native timing, physical input and library return remain acceptance requirements.
+
+### Advanced Options (same 0.2.3 candidate)
+
+The operator also requested access to advanced options without adding another shortcut. The simple pause screen now contains Resume, Return to Game Library and Advanced Options, in that order. The latter opens RetroArch's existing Settings submenu through its normal action binding (video, audio, input, directories and other native configuration categories), rather than exposing the full file browser or adding a new hotkey. Standard B back navigation applies inside the settings submenu; on the simple pause screen B resumes. Select tap resumes through the existing runloop toggle path after releasing the initial hold; Start is reserved for gameplay. This is access to native Settings, not a separately implemented advanced Quick Menu with all content actions. Changing native menu/hotkey configuration may alter navigation until restart, when the package appendconfig is loaded again. Source insertion and existing settings binding checked against pinned upstream; nine host tests, SDL smoke and Select state tests pass. Physical navigation, return and ARM compilation remain pending. Do not install a superseded candidate.
