@@ -5,6 +5,7 @@ on:
       - '.github/workflows/aeon-webos-pause-frontend.yml'
       - 'experiments/aeon-rpg-player/patch_frontend.py'
       - 'experiments/aeon-rpg-player/select_hold.h'
+      - 'experiments/aeon-rpg-player/voice_*.h'
 permissions:
   contents: read
 jobs:
@@ -47,14 +48,14 @@ jobs:
           cp retroarch "$RUNNER_TEMP/aeon-frontend/"
           cp COPYING "$RUNNER_TEMP/aeon-frontend/"
           git diff > "$RUNNER_TEMP/aeon-frontend/frontend.patch"
-          cp input/aeon_select_hold.h "$RUNNER_TEMP/aeon-frontend/"
+          cp input/aeon_select_hold.h input/aeon_voice_chord.h input/aeon_voice_intent.h "$RUNNER_TEMP/aeon-frontend/"
           cd "$RUNNER_TEMP/aeon-frontend"
           readelf -h retroarch | tee elf-header.txt
           grep -E 'Class:.*ELF32' elf-header.txt
           grep -E 'Machine:.*ARM$' elf-header.txt
           readelf -d retroarch | tee elf-dynamic.txt
           readelf -l retroarch | grep -F '/lib/ld-linux.so.3]'
-          sha256sum retroarch COPYING frontend.patch aeon_select_hold.h > SHA256SUMS
+          sha256sum retroarch COPYING frontend.patch aeon_select_hold.h aeon_voice_chord.h aeon_voice_intent.h > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: aeon-webos-pause-frontend

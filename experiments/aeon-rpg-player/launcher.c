@@ -11,6 +11,8 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <SDL.h>
+#include <fcntl.h>
+#include "voice_intent.h"
 #include "library_menu.h"
 
 static void die(const char *what) { perror(what); exit(1); }
@@ -24,19 +26,38 @@ static void directory(const char *p) {
     if(lstat(p,&st)<0 || !S_ISDIR(st.st_mode) || st.st_uid!=getuid() || (st.st_mode & 0077)) { errno=EACCES; die(p); }
 }
 extern char **environ;
-struct playback { const char *frontend,*cfg,*core,*menu_cfg; };
+struct playback { const char *frontend,*cfg,*core,*menu_cfg,*editable; };
 static int play_game(const char *content,void *context) {
     struct playback *p=context;
     char *const args[]={(char *)p->frontend,"--config",(char *)p->cfg,"--appendconfig",(char *)p->menu_cfg,"-L",(char *)p->core,(char *)content,NULL};
+    int channel[2]={-1,-1}, received=0;
+    unsetenv(AEON_VOICE_FD);
+    if (!strcmp(content,p->editable) && socketpair(AF_UNIX,SOCK_DGRAM,0,channel)==0) {
+        char fdstr[32];
+        snprintf(fdstr,sizeof fdstr,"%d",channel[1]);
+        if (fcntl(channel[0],F_SETFD,FD_CLOEXEC)<0 || setenv(AEON_VOICE_FD,fdstr,1)<0) {
+            close(channel[0]);close(channel[1]);channel[0]=channel[1]=-1;
+        }
+    }
     pid_t pid;
     int error=posix_spawn(&pid,p->frontend,NULL,NULL,args,environ);
-    if(error){errno=error;perror("retroarch");return -1;}
+    unsetenv(AEON_VOICE_FD);
+    if(channel[1]>=0)close(channel[1]);
+    if(error){if(channel[0]>=0)close(channel[0]);errno=error;perror("retroarch");return -1;}
     int status=0,closing=0;
     Uint32 started=0;
     for(;;){
+        if(channel[0]>=0)for(int i=0;i<8;i++){
+            char source;int event=aeon_voice_receive(channel[0],&source);
+            if(!event)break;
+            if(event==1 && received<16){
+                received++;
+                fprintf(stderr,"AEON VOICE DRY RUN game=lantern-gate source=%s sequence=%d\n",source=='M'?"menu":"chord",received);
+            }
+        }
         pid_t result=waitpid(pid,&status,WNOHANG);
         if(result==pid)break;
-        if(result<0 && errno!=EINTR){perror("waitpid");return -1;}
+        if(result<0 && errno!=EINTR){if(channel[0]>=0)close(channel[0]);perror("waitpid");return -1;}
         SDL_Event e;
         while(SDL_PollEvent(&e)){
             if(e.type==SDL_QUIT && !closing){
@@ -46,6 +67,7 @@ static int play_game(const char *content,void *context) {
         if(closing && SDL_GetTicks()-started>3000)kill(pid,SIGKILL);
         SDL_Delay(25);
     }
+    if(channel[0]>=0)close(channel[0]);
     if(closing)return 1;
     if(!WIFEXITED(status)||WEXITSTATUS(status)!=0)return -1;
     return 0;
@@ -71,6 +93,7 @@ int main(void) {
     } else if(errno!=EEXIST) die("config");
     if(setenv("LD_LIBRARY_PATH",lib,1)<0 || chdir(app)<0) die("frontend environment");
     path(menu_cfg,app,"aeon-menu.cfg");
-    struct playback p={frontend,cfg,core,menu_cfg};
+    char editable[PATH_MAX]; path(editable,app,"library/AEon-Lantern-Gate.mkxpz");
+    struct playback p={frontend,cfg,core,menu_cfg,editable};
     return aeon_library_menu(app,games,play_game,&p)<0?1:0;
 }
