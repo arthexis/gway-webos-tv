@@ -10,4 +10,4 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 f0d9cfd6f7d92f6ec061a5fb2882f67d2521a151bf09a637c33ca6181834b048  LICENSE
 SUMS
 )
-"${CC:-cc}" -std=c99 -D_DEFAULT_SOURCE -DMG_TLS=MG_TLS_BUILTIN -I"$d" -O2 "$here/voice_client.c" "$d/mongoose.c" -pthread -o "$out"
+"${CC:-cc}" -std=gnu99 -D_GNU_SOURCE -Werror=implicit-function-declaration -include alloca.h -DMG_TLS=MG_TLS_BUILTIN -I"$d" -O2 "$here/voice_client.c" "$d/mongoose.c" -pthread -o "$out"
