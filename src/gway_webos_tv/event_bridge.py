@@ -43,8 +43,10 @@ def write_private(path, value):
             os.unlink(temporary)
 
 
-def open_local_pairing_window():
+def open_local_pairing_window(app=None):
     """Create a short-lived, single-use pairing code on the bridge host."""
+    if app not in (None, "aeon-player"):
+        raise ValueError("Unsupported pairing application")
     code = f"{secrets.randbelow(1000000):06d}"
     salt = secrets.token_hex(16)
     write_private(
@@ -54,6 +56,7 @@ def open_local_pairing_window():
             "salt": salt,
             "expires": time.time() + 120,
             "attempts_remaining": 5,
+            **({"app": app} if app else {}),
         },
     )
     return code
@@ -225,6 +228,7 @@ class Bridge:
             if message.get("type") == "pair":
                 async with self.lock:
                     value = message.get("secret")
+                    app = message.get("app", "remote-test")
                     pending_path = self.directory / "pending-pairing.json"
                     valid = False
                     try:
@@ -249,15 +253,17 @@ class Bridge:
                                 write_private(pending_path, pending)
                             if isinstance(value, str) and re.fullmatch(r"[0-9]{6}", value):
                                 digest = hashlib.sha256((salt + value).encode()).hexdigest()
-                                valid = hmac.compare_digest(digest, expected)
+                                valid = hmac.compare_digest(digest, expected) and (
+                                    pending.get("app") == app == "aeon-player"
+                                    or pending.get("app") is None and app in ("remote-test", "gway-monitor")
+                                )
                     except (OSError, ValueError, KeyError, TypeError):
                         pass
                     if not valid:
                         await ws.close(1008, "Pairing denied")
                         return
                     pending_path.unlink(missing_ok=True)
-                    app = message.get("app", "remote-test")
-                    if app not in ("remote-test", "gway-monitor"):
+                    if app not in ("remote-test", "gway-monitor", "aeon-player"):
                         await ws.close(1008, "Unknown application")
                         return
                     credential = secrets.token_urlsafe(32)
@@ -275,6 +281,7 @@ class Bridge:
                     if not isinstance(scoped, dict):
                         scoped = {}
                     scoped[session_digest] = (
+                        ["aeon.voice"] if app == "aeon-player" else
                         ["monitor.read", "deployment.retry"] if app == "gway-monitor" else ["button.pressed"]
                     )
                     write_private(
@@ -285,7 +292,8 @@ class Bridge:
                             "scoped": scoped,
                         },
                     )
-                    (self.directory / "last-button.json").unlink(missing_ok=True)
+                    if app != "aeon-player":
+                        (self.directory / "last-button.json").unlink(missing_ok=True)
                 await ws.send(json.dumps({"type": "paired", "credential": credential}))
             elif message.get("type") == "auth":
                 value = message.get("credential")
@@ -412,7 +420,21 @@ async def run(args):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(args.cert, args.key)
-    bridge = Bridge(state_directory())
+    directory = state_directory()
+    voice = None
+    if args.aeon_voice_source:
+        from .aeon_scoped_voice import ScopedVoice
+        from .client import TV
+        from .state import default_state_path, load_state
+        home = Path.home()
+        backend = ScopedVoice(
+            directory / "aeon-voice-sessions", Path(args.aeon_voice_source).resolve(),
+            home / ".local/share/gway-agent-ops/voice-runtime",
+            home / ".codex/auth.json", Path("/run/user") / str(os.getuid()) / "pulse",
+            lambda: TV(load_state(default_state_path()), timeout=4),
+        )
+        voice = VoiceSession(backend)
+    bridge = Bridge(directory, voice=voice)
     async with serve(
         bridge.handler, args.listen, args.port, ssl=context, max_size=2048, max_queue=8
     ):
@@ -426,6 +448,7 @@ def main():
     parser.add_argument("--port", type=int, default=8769)
     parser.add_argument("--cert", required=True, help="TV-trusted TLS certificate chain")
     parser.add_argument("--key", required=True, help="TLS private key")
+    parser.add_argument("--aeon-voice-source", type=Path, help="Explicitly enable scoped voice for verified Lantern Gate source")
     args = parser.parse_args()
     try:
         asyncio.run(run(args))

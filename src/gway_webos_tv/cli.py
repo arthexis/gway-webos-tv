@@ -39,6 +39,7 @@ def parser():
     commands = root.add_subparsers(dest="command", required=True)
     pair = commands.add_parser("pair", help="Pair TV control or open a local GWAY Monitor pairing window")
     pair.add_argument("--code", action="store_true", help="Generate a six-digit GWAY Monitor pairing code locally")
+    pair.add_argument("--app", choices=("aeon-player",), help="Open a voice-only AEon pairing window with --code")
     pair_actions = pair.add_subparsers(dest="pair_command")
     pair_actions.add_parser("code", help="Generate a private local interactive pairing code").set_defaults(code=True)
     commands.add_parser("status", help="Read TV identity and foreground input/app")
@@ -130,7 +131,7 @@ async def run(args):
             raise TVError("Bridge pairing codes require a private interactive terminal.")
         from .event_bridge import open_local_pairing_window
 
-        code = open_local_pairing_window()
+        code = open_local_pairing_window(getattr(args, "app", None))
         print("Enter this code on the TV within two minutes:", code, flush=True)
         return None
     pairing = operation.name == "pair"

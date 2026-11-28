@@ -78,9 +78,12 @@ class VoiceSession:
                 self.active = session
                 try:
                     await asyncio.wait_for(self.backend.start(session), 45)
-                except (Exception, asyncio.CancelledError):
+                except asyncio.CancelledError:
                     await self._stop()
                     raise
+                except Exception as exc:
+                    await self._stop()
+                    raise VoiceDenied("Scoped voice start failed") from exc
             elif not enabled:
                 await self._stop()
             if self.active:
@@ -94,6 +97,9 @@ class VoiceSession:
             if self.clock() >= self.deadline:
                 await self._stop()
                 raise VoiceDenied("Expired voice session")
+            if hasattr(self.backend, "listening") and not await self.backend.listening():
+                await self._stop()
+                raise VoiceDenied("Voice no longer listening")
             self.deadline = self.clock() + LEASE_SECONDS
             return self.status()
 
