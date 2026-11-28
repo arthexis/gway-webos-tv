@@ -41,7 +41,7 @@ static void voice_config(struct voice_settings *s,const char *app,const char *ro
     if(!f)return;
     int ok=voice_line(f,s->base,sizeof s->base) && voice_line(f,s->host,sizeof s->host) && fgetc(f)==EOF;
     fclose(f);
-    s->configured=ok && !strncmp(s->base,"wss://",6) && !strchr(s->base+6,'/') &&
+    s->configured=ok && !strncmp(s->base,"wss://",6) && (!strchr(s->base+6,'/') || !strcmp(strchr(s->base+6,'/'),"/api/v1/nodes/gway-001/tv-events")) &&
         !strchr(s->base,'@') && !strchr(s->base,'?') && !strchr(s->base,'#') &&
         access(s->helper,X_OK)==0 && access(s->ca,R_OK)==0;
 }
@@ -64,7 +64,8 @@ static int voice_spawn(struct voice_relay *r,const struct voice_settings *s,cons
     if(secret<0)return 0;
     if(socketpair(AF_UNIX,SOCK_STREAM,0,fd)){close(secret);return 0;}
     char url[600],sockstr[24],secstr[24];
-    snprintf(url,sizeof url,"%s/aeon/%s",s->base,pair?"pair":"voice");
+    if(strchr(s->base+6,'/'))snprintf(url,sizeof url,"%s",s->base);
+    else snprintf(url,sizeof url,"%s/aeon/%s",s->base,pair?"pair":"voice");
     snprintf(sockstr,sizeof sockstr,"%d",fd[1]);snprintf(secstr,sizeof secstr,"%d",secret);
     char *args[]={(char*)s->helper,url,(char*)s->host,(char*)s->ca,sockstr,secstr,
         (char*)(pair?"--pair":content),pair?(char*)s->secret:NULL,NULL};

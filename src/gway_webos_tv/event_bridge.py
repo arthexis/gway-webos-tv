@@ -142,15 +142,16 @@ class Bridge:
         except (OSError, ValueError, TypeError, AttributeError):
             return False
 
-    async def voice_handler(self, ws):
+    async def voice_handler(self, ws, message=None):
         connection = secrets.token_hex(16)
         try:
-            message = json.loads(await asyncio.wait_for(ws.recv(), 10))
+            if message is None:
+                message = json.loads(await asyncio.wait_for(ws.recv(), 10))
             if not isinstance(message, dict) or set(message) != {"type", "credential"}:
                 await ws.close(1008, "Authentication required")
                 return
             value = message["credential"]
-            if message["type"] != "auth" or not isinstance(value, str):
+            if message["type"] not in ("auth", "aeon.voice.auth") or not isinstance(value, str):
                 await ws.close(1008, "Authentication required")
                 return
             digest = hashlib.sha256(value.encode()).hexdigest()
@@ -190,6 +191,9 @@ class Bridge:
             message = json.loads(raw)
             if not isinstance(message, dict):
                 return
+            if message.get("type") == "aeon.voice.auth":
+                await self.voice_handler(ws, message)
+                return
             if message.get("type") == "admin.arm_pairing":
                 if ws.request.path != "/admin/pair":
                     await ws.close(1008, "Unsupported operation")
@@ -225,7 +229,7 @@ class Bridge:
                     )
                 await ws.send(json.dumps({"type": "pairing.open", "expires_in": 120}))
                 return
-            if message.get("type") == "pair":
+            if message.get("type") in ("pair", "aeon.pair"):
                 async with self.lock:
                     value = message.get("secret")
                     app = message.get("app", "remote-test")
@@ -254,8 +258,8 @@ class Bridge:
                             if isinstance(value, str) and re.fullmatch(r"[0-9]{6}", value):
                                 digest = hashlib.sha256((salt + value).encode()).hexdigest()
                                 valid = hmac.compare_digest(digest, expected) and (
-                                    pending.get("app") == app == "aeon-player" and ws.request.path == "/aeon/pair"
-                                    or pending.get("app") is None and app in ("remote-test", "gway-monitor") and ws.request.path != "/aeon/pair"
+                                    pending.get("app") == app == "aeon-player" and (ws.request.path == "/aeon/pair" or message.get("type") == "aeon.pair")
+                                    or pending.get("app") is None and app in ("remote-test", "gway-monitor") and ws.request.path != "/aeon/pair" and message.get("type") == "pair"
                                 )
                     except (OSError, ValueError, KeyError, TypeError):
                         pass

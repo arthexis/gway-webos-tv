@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
+#define RELAY_URI "/api/v1/nodes/gway-001/tv-events"
 #define RELEASE "9e09b80699cd5d293d7d3c37d718fe09f463fa2fdd3e714fab2cad96d056c4cd"
 struct client {
     struct mg_connection *conn;
@@ -19,7 +20,7 @@ struct client {
     const char *name;
     char auth[44], launch[33], nonce[33];
     unsigned seq;
-    int fd, ready, pending, listening, desired, done, pairing;
+    int fd, ready, pending, listening, desired, done, pairing, forwarded;
     const char *credential_path;
     uint64_t deadline, heartbeat;
 };
@@ -80,9 +81,9 @@ static void event(struct mg_connection *c,int ev,void *data) {
         mg_tls_init(c,&opts);
     }else if(ev==MG_EV_WS_OPEN){
         if(s->pairing)
-            mg_ws_printf(c,WEBSOCKET_OP_TEXT,"{\"type\":\"pair\",\"app\":\"aeon-player\",\"secret\":\"%s\"}",s->auth);
+            mg_ws_printf(c,WEBSOCKET_OP_TEXT,"{\"type\":\"%s\",\"app\":\"aeon-player\",\"secret\":\"%s\"}",s->forwarded?"aeon.pair":"pair",s->auth);
         else
-            mg_ws_printf(c,WEBSOCKET_OP_TEXT,"{\"type\":\"auth\",\"credential\":\"%s\"}",s->auth);
+            mg_ws_printf(c,WEBSOCKET_OP_TEXT,"{\"type\":\"%s\",\"credential\":\"%s\"}",s->forwarded?"aeon.voice.auth":"auth",s->auth);
         memset(s->auth,0,sizeof s->auth);
     }else if(ev==MG_EV_WS_MSG){
         struct mg_ws_message *m=data;
@@ -131,11 +132,12 @@ static int read_secret(int fd,char *out,size_t len) {
 int main(int argc,char **argv) {
     if((argc!=6 && argc!=7 && argc!=8) || strncmp(argv[1],"wss://",6) || !argv[2][0] ||
        strlen(argv[2])>253 || strchr(argv[2],'\n') ||
-       (strcmp(mg_url_uri(argv[1]),"/aeon/voice") && strcmp(mg_url_uri(argv[1]),"/aeon/pair")))return 2;
+       (strcmp(mg_url_uri(argv[1]),"/aeon/voice") && strcmp(mg_url_uri(argv[1]),"/aeon/pair") && strcmp(mg_url_uri(argv[1]),RELAY_URI)))return 2;
     struct client s={0};
-    s.pairing=argc==8 && !strcmp(argv[6],"--pair") && !strcmp(mg_url_uri(argv[1]),"/aeon/pair");
+    s.forwarded=!strcmp(mg_url_uri(argv[1]),RELAY_URI);
+    s.pairing=argc==8 && !strcmp(argv[6],"--pair") && (s.forwarded || !strcmp(mg_url_uri(argv[1]),"/aeon/pair"));
     if(s.pairing)s.credential_path=argv[7];
-    else if(argc==8 || strcmp(mg_url_uri(argv[1]),"/aeon/voice") || (argc==7 && !verify_release(argv[6])))return 2;
+    else if(argc==8 || (!s.forwarded && strcmp(mg_url_uri(argv[1]),"/aeon/voice")) || (argc==7 && !verify_release(argv[6])))return 2;
     char *end=NULL;
     long fd=strtol(argv[4],&end,10);
     if(*end || fd<3 || fd>65535)return 2;

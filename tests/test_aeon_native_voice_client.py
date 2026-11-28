@@ -41,7 +41,7 @@ def test_native_shared_toggle(tmp_path):
         async with serve(bridge.handler, "127.0.0.1", 0, ssl=context) as server:
             port = server.sockets[0].getsockname()[1]
 
-            async def run_client(hostname, valid):
+            async def run_client(hostname, valid, route="/aeon/voice"):
                 parent, child = socket.socketpair()
                 parent.setblocking(False)
                 read, write = os.pipe()
@@ -49,7 +49,7 @@ def test_native_shared_toggle(tmp_path):
                 os.close(write)
                 proc = subprocess.Popen([
                     os.environ["AEON_NATIVE_VOICE_CLIENT"],
-                    f"wss://127.0.0.1:{port}/aeon/voice", hostname,
+                    f"wss://127.0.0.1:{port}{route}", hostname,
                     str(cert), str(child.fileno()), str(read),
                 ], pass_fds=(child.fileno(), read), stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL)
@@ -91,6 +91,8 @@ def test_native_shared_toggle(tmp_path):
 
             await run_client("wrong.local", False)
             await run_client("localhost", True)
+            backend.starts=backend.stops=0
+            await run_client("localhost", True, "/api/v1/nodes/gway-001/tv-events")
     asyncio.run(check())
 
 
@@ -138,7 +140,7 @@ def test_native_voice_pairing(tmp_path):
             rd, wr = os.pipe()
             os.write(wr, code.encode()); os.close(wr)
             proc = subprocess.Popen([os.environ["AEON_NATIVE_VOICE_CLIENT"],
-                base+"/aeon/pair", "localhost", str(cert), str(child.fileno()), str(rd),
+                base+"/api/v1/nodes/gway-001/tv-events", "localhost", str(cert), str(child.fileno()), str(rd),
                 "--pair", str(target)], pass_fds=(child.fileno(),rd),
                 stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             child.close();os.close(rd)
