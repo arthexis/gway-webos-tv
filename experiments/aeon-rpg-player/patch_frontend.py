@@ -6,15 +6,26 @@ def replace(path,old,new):
     if s.count(old)!=1: raise ValueError(f'unexpected source: {path}: {old!r}')
     p.write_text(s.replace(old,new))
 shutil.copyfile(pathlib.Path(__file__).with_name('select_hold.h'),root/'input/aeon_select_hold.h')
-replace('input/input_driver.c','#define HOLD_BTN_DELAY_SEC 2','#include "aeon_select_hold.h"\n#define HOLD_BTN_DELAY_SEC 2')
-replace('input/input_driver.c',"""      case INPUT_COMBO_HOLD_SELECT:
-         return input_driver_button_combo_hold(
-               INPUT_COMBO_HOLD_SELECT, RETRO_DEVICE_ID_JOYPAD_SELECT, current_time, p_input);""","""      case INPUT_COMBO_HOLD_SELECT:
-      {
-         static struct aeon_select_hold select_hold;
-         return aeon_select_update(&select_hold,
-               BIT256_GET_PTR(p_input, RETRO_DEVICE_ID_JOYPAD_SELECT), current_time);
-      }""")
+replace('runloop.c','#include "input/input_driver.h"','#include "input/input_driver.h"\n#include "input/aeon_select_hold.h"')
+replace('runloop.c',"""   if (     menu_toggle_gamepad_combo != INPUT_COMBO_NONE
+         && input_driver_button_combo(
+               menu_toggle_gamepad_combo,
+               current_time,
+               &last_input))
+      BIT256_SET(current_bits, RARCH_MENU_TOGGLE);""","""   if (menu_toggle_gamepad_combo == INPUT_COMBO_HOLD_SELECT)
+   {
+      static struct aeon_select_hold select_hold;
+      if (aeon_select_update(&select_hold,
+            BIT256_GET(last_input, RETRO_DEVICE_ID_JOYPAD_SELECT),
+            menu_was_alive, current_time))
+         BIT256_SET(current_bits, RARCH_MENU_TOGGLE);
+   }
+   else if (menu_toggle_gamepad_combo != INPUT_COMBO_NONE
+         && input_driver_button_combo(
+               menu_toggle_gamepad_combo,
+               current_time,
+               &last_input))
+      BIT256_SET(current_bits, RARCH_MENU_TOGGLE);""")
 replace('intl/msg_hash_us.h','"Hold Select (2 seconds)"','"Hold Select (3 seconds)"')
 replace('intl/msg_hash_us.h','MENU_ENUM_LABEL_VALUE_CLOSE_CONTENT,\n   "Close Content"','MENU_ENUM_LABEL_VALUE_CLOSE_CONTENT,\n   "Return to Game Library"')
 p=root/'menu/cbs/menu_cbs_ok.c'
