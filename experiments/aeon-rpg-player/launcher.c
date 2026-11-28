@@ -24,10 +24,10 @@ static void directory(const char *p) {
     if(lstat(p,&st)<0 || !S_ISDIR(st.st_mode) || st.st_uid!=getuid() || (st.st_mode & 0077)) { errno=EACCES; die(p); }
 }
 extern char **environ;
-struct playback { const char *frontend,*cfg,*core; };
+struct playback { const char *frontend,*cfg,*core,*menu_cfg; };
 static int play_game(const char *content,void *context) {
     struct playback *p=context;
-    char *const args[]={(char *)p->frontend,"--config",(char *)p->cfg,"-L",(char *)p->core,(char *)content,NULL};
+    char *const args[]={(char *)p->frontend,"--config",(char *)p->cfg,"--appendconfig",(char *)p->menu_cfg,"-L",(char *)p->core,(char *)content,NULL};
     pid_t pid;
     int error=posix_spawn(&pid,p->frontend,NULL,NULL,args,environ);
     if(error){errno=error;perror("retroarch");return -1;}
@@ -51,7 +51,7 @@ static int play_game(const char *content,void *context) {
     return 0;
 }
 int main(void) {
-    char app[PATH_MAX],root[PATH_MAX],cfg[PATH_MAX],system[PATH_MAX],saves[PATH_MAX],states[PATH_MAX],games[PATH_MAX],cores[PATH_MAX],core[PATH_MAX],frontend[PATH_MAX],lib[PATH_MAX];
+    char app[PATH_MAX],root[PATH_MAX],cfg[PATH_MAX],system[PATH_MAX],saves[PATH_MAX],states[PATH_MAX],games[PATH_MAX],cores[PATH_MAX],core[PATH_MAX],frontend[PATH_MAX],lib[PATH_MAX],menu_cfg[PATH_MAX];
     ssize_t n=readlink("/proc/self/exe",app,sizeof app-1);
     if(n<1 || n>=PATH_MAX-1) die("app location");
     app[n]=0; char *slash=strrchr(app,'/'); if(!slash) die("app directory"); *slash=0;
@@ -70,6 +70,7 @@ int main(void) {
         if(fprintf(f,"system_directory = \"%s\"\nsavefile_directory = \"%s\"\nsavestate_directory = \"%s\"\nrgui_browser_directory = \"%s\"\nlibretro_directory = \"%s\"\nvideo_driver = \"gl\"\nvideo_smooth = \"false\"\nvideo_fullscreen = \"true\"\nmenu_driver = \"rgui\"\nconfig_save_on_exit = \"true\"\n",system,saves,states,games,cores)<0 || fclose(f)!=0) die("config");
     } else if(errno!=EEXIST) die("config");
     if(setenv("LD_LIBRARY_PATH",lib,1)<0 || chdir(app)<0) die("frontend environment");
-    struct playback p={frontend,cfg,core};
+    path(menu_cfg,app,"aeon-menu.cfg");
+    struct playback p={frontend,cfg,core,menu_cfg};
     return aeon_library_menu(app,games,play_game,&p)<0?1:0;
 }

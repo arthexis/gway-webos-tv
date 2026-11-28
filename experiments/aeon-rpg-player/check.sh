@@ -18,5 +18,7 @@ if command -v ruby >/dev/null 2>&1; then
 else
   echo 'Fixture generation SKIPPED (Ruby unavailable)' >&2
 fi
+"$CC" -std=c99 -Wall -Wextra -Werror test_select_hold.c -o "$out/test_select_hold"
+"$out/test_select_hold"
 python3 -m unittest -v test_game_store test_bundle
 echo 'Host SDL smoke and input tests PASS'

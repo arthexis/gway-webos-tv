@@ -54,7 +54,7 @@ class BundleTests(unittest.TestCase):
             if Path('/media/internal').is_dir() and os.access('/media/internal',os.W_OK): self.skipTest('host has actual media directory')
             r=subprocess.check_output([str(app/'launcher')],env=env,text=True)
             data=home/'.aeon-rpg-player'; cfg=data/'retroarch.cfg'
-            self.assertIn(str(app/'fixture/Game.ini'),r); self.assertIn(str(data/'saves'),cfg.read_text())
+            self.assertIn(str(app/'fixture/Game.ini'),r); self.assertIn('--appendconfig',r); self.assertIn(str(app/'aeon-menu.cfg'),r); self.assertIn(str(data/'saves'),cfg.read_text())
             self.assertTrue((data/'games').is_dir()); cfg.write_text('preserved\n')
             subprocess.run([str(app/'launcher')],env=env,check=True,capture_output=True)
             self.assertEqual(cfg.read_text(),'preserved\n')
