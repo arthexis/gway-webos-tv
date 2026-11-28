@@ -7,6 +7,8 @@ trap 'rm -rf "$out"' EXIT HUP INT TERM
 : "${PKG_CONFIG:=pkg-config}"
 "$CC" -std=c99 -Wall -Wextra -Werror test_input.c -o "$out/test_input"
 "$out/test_input"
+"$CC" -std=c99 -Wall -Wextra -Werror test_probe_events.c -o "$out/test_probe_events"
+"$out/test_probe_events"
 "$CC" -std=c99 -Wall -Wextra -Werror $($PKG_CONFIG --cflags sdl2) controller_probe.c -o "$out/controller_probe" $($PKG_CONFIG --libs sdl2)
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy "$out/controller_probe" --smoke
 if command -v ruby >/dev/null 2>&1; then

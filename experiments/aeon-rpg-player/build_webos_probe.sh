@@ -20,7 +20,7 @@ readelf -h "$stage/controller_probe" | grep -E 'Machine:.*ARM$'
 readelf -l "$stage/controller_probe" | grep -F '/lib/ld-linux.so.3]'
 readelf -d "$stage/controller_probe" | grep NEEDED
 cat > "$stage/appinfo.json" <<'JSON'
-{"id":"com.arthexis.aeon.inputprobe","type":"native","main":"controller_probe","title":"AEon Input Probe","version":"0.1.0","vendor":"Arthexis","icon":"icon.png"}
+{"id":"com.arthexis.aeon.inputprobe","type":"native","main":"controller_probe","title":"AEon Input Probe","version":"0.2.0","vendor":"Arthexis","icon":"icon.png"}
 JSON
 python3 - "$stage/icon.png" <<'PY'
 import struct,zlib,sys
@@ -30,4 +30,4 @@ def chunk(t,b): return struct.pack('>I',len(b))+t+b+struct.pack('>I',zlib.crc32(
 open(sys.argv[1],'wb').write(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b''))
 PY
 NODE_OPTIONS=--no-addons "$WEBOS_NODE_BIN" "$WEBOS_CLI_DIR/ares-package.js" "$stage" -o "$output"
-find "$output" -maxdepth 1 -name 'com.arthexis.aeon.inputprobe_0.1.0_*.ipk' -exec sha256sum {} \;
+find "$output" -maxdepth 1 -name 'com.arthexis.aeon.inputprobe_0.2.0_*.ipk' -exec sha256sum {} \;
