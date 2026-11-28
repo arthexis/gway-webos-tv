@@ -46,7 +46,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ruby
           d="$RUNNER_TEMP/player-inputs"
           mkdir "$d"
-          "$WEBOS_SDK/bin/arm-webos-linux-gnueabi-gcc" -std=c99 -Wall -Wextra -Werror -O2 experiments/aeon-rpg-player/launcher.c -o "$d/launcher"
+          "$WEBOS_SDK/bin/arm-webos-linux-gnueabi-gcc" -std=c99 -Wall -Wextra -Werror -O2 -I"$WEBOS_SDK/arm-webos-linux-gnueabi/sysroot/usr/include/SDL2" experiments/aeon-rpg-player/launcher.c experiments/aeon-rpg-player/library_menu.c -Wl,-rpath,'$ORIGIN/lib' -lSDL2 -o "$d/launcher"
           readelf -h "$d/launcher" | grep -E 'Class:.*ELF32'
           readelf -h "$d/launcher" | grep -E 'Machine:.*ARM$'
           readelf -l "$d/launcher" | grep -F '/lib/ld-linux.so.3]'
@@ -60,7 +60,8 @@ jobs:
                   z.writestr(info, (Path(sys.argv[1])/name).read_bytes())
           PY
           cd "$d"
-          sha256sum launcher fixture.zip > SHA256SUMS
+          (cd "$GITHUB_WORKSPACE/experiments/aeon-rpg-player/demo"; python3 generate.py; cp AEon-Lantern-Gate.mkxpz "$d/")
+          sha256sum launcher fixture.zip AEon-Lantern-Gate.mkxpz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: aeon-webos-player-inputs

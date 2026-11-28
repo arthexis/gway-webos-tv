@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "library_menu.h"
 
 static void die(const char *what) { perror(what); exit(1); }
 static void path(char *out, const char *a, const char *b) {
@@ -32,12 +33,14 @@ int main(void) {
     path(games,root,"games"); directory(games);
     path(cfg,root,"retroarch.cfg"); path(cores,app,"cores");
     path(core,cores,"mkxp-z_libretro.so"); path(frontend,app,"retroarch");
-    path(fixture,app,"fixture/Game.ini"); path(lib,app,"lib");
+    path(lib,app,"lib");
     FILE *f=fopen(cfg,"wx");
     if(f) {
         if(fprintf(f,"system_directory = \"%s\"\nsavefile_directory = \"%s\"\nsavestate_directory = \"%s\"\nrgui_browser_directory = \"%s\"\nlibretro_directory = \"%s\"\nvideo_driver = \"gl\"\nvideo_smooth = \"false\"\nvideo_fullscreen = \"true\"\nmenu_driver = \"rgui\"\nconfig_save_on_exit = \"true\"\n",system,saves,states,games,cores)<0 || fclose(f)!=0) die("config");
     } else if(errno!=EEXIST) die("config");
     if(setenv("LD_LIBRARY_PATH",lib,1)<0 || chdir(app)<0) die("frontend environment");
+    int choice=aeon_library_menu(app,games,fixture,sizeof fixture);
+    if(choice<=0)return choice<0?1:0;
     char *const args[]={frontend,"--config",cfg,"-L",core,fixture,NULL};
     execv(frontend,args); die("retroarch");
 }

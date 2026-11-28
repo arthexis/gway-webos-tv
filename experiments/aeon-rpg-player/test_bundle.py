@@ -47,9 +47,10 @@ class BundleTests(unittest.TestCase):
     def test_launcher_keeps_config(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d); home=root/'home'; home.mkdir(); app=root/'app'; app.mkdir()
-            subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror',str(HERE/'launcher.c'),'-o',str(app/'launcher')],check=True)
+            subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-DAEON_MENU_TEST',*subprocess.check_output(['pkg-config','--cflags','sdl2'],text=True).split(),str(HERE/'launcher.c'),str(HERE/'library_menu.c'),*subprocess.check_output(['pkg-config','--libs','sdl2'],text=True).split(),'-o',str(app/'launcher')],check=True)
             front=app/'retroarch'; front.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n'); front.chmod(0o755)
-            env={**os.environ,'HOME':str(home)}
+            (app/'fixture').mkdir(); (app/'fixture/Game.ini').write_text('[Game]')
+            env={**os.environ,'HOME':str(home),'SDL_VIDEODRIVER':'dummy'}
             if Path('/media/internal').is_dir() and os.access('/media/internal',os.W_OK): self.skipTest('host has actual media directory')
             r=subprocess.check_output([str(app/'launcher')],env=env,text=True)
             data=home/'.aeon-rpg-player'; cfg=data/'retroarch.cfg'
@@ -57,3 +58,16 @@ class BundleTests(unittest.TestCase):
             self.assertTrue((data/'games').is_dir()); cfg.write_text('preserved\n')
             subprocess.run([str(app/'launcher')],env=env,check=True,capture_output=True)
             self.assertEqual(cfg.read_text(),'preserved\n')
+
+    def test_library_selects_different_game(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d); home=root/'home'; home.mkdir(); app=root/'app'; app.mkdir()
+            (app/'fixture').mkdir(); (app/'fixture/Game.ini').write_text('[Game]')
+            (app/'library').mkdir(); (app/'library/ZZ-Test.mkxpz').write_bytes(b'test')
+            (app/'library/ZZZ-Symlink.mkxpz').symlink_to(app/'library/ZZ-Test.mkxpz')
+            subprocess.run(['cc','-std=c99','-Wall','-Wextra','-Werror','-DAEON_MENU_TEST',*subprocess.check_output(['pkg-config','--cflags','sdl2'],text=True).split(),str(HERE/'launcher.c'),str(HERE/'library_menu.c'),*subprocess.check_output(['pkg-config','--libs','sdl2'],text=True).split(),'-o',str(app/'launcher')],check=True)
+            front=app/'retroarch'; front.write_text('#!/bin/sh\nprintf "%s\\n" "$@"\n'); front.chmod(0o755)
+            env={**os.environ,'HOME':str(home),'SDL_VIDEODRIVER':'dummy'}
+            if Path('/media/internal').is_dir() and os.access('/media/internal',os.W_OK): self.skipTest('host has actual media directory')
+            r=subprocess.check_output([str(app/'launcher')],env=env,text=True,timeout=10)
+            self.assertIn(str(app/'library/ZZ-Test.mkxpz'),r)
