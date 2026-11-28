@@ -24,3 +24,58 @@ end=s.index('\n}',start)+2
 if 'should_quit_on_close()' not in s[start:end]: raise ValueError('unexpected close action')
 opening=s.index('\n{',start)+2
 p.write_text(s[:opening]+ '\n   /* AEon launcher owns the library. */\n   return generic_action_ok_command(CMD_EVENT_QUIT);\n}'+s[end:])
+
+# The AEon pause screen must not expose the emulator's file browser.
+replace('menu/menu_displaylist.c',
+"""static int menu_displaylist_parse_load_content_settings(
+      file_list_t *list, settings_t *settings,
+      bool horizontal)
+{
+   unsigned count         = 0;
+""",
+"""static int menu_displaylist_parse_load_content_settings(
+      file_list_t *list, settings_t *settings,
+      bool horizontal)
+{
+   unsigned count         = 0;
+
+   if (!retroarch_ctl(RARCH_CTL_IS_DUMMY_CORE, NULL))
+   {
+      if (menu_entries_append(list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_RESUME_CONTENT),
+            msg_hash_to_str(MENU_ENUM_LABEL_RESUME_CONTENT),
+            MENU_ENUM_LABEL_RESUME_CONTENT,
+            MENU_SETTING_ACTION_RUN, 0, 0, NULL))
+         count++;
+      if (menu_entries_append(list,
+            msg_hash_to_str(MENU_ENUM_LABEL_VALUE_CLOSE_CONTENT),
+            msg_hash_to_str(MENU_ENUM_LABEL_CLOSE_CONTENT),
+            MENU_ENUM_LABEL_CLOSE_CONTENT,
+            MENU_SETTING_ACTION_CLOSE, 0, 0, NULL))
+         count++;
+      return count;
+   }
+""")
+replace('menu/drivers/rgui.c',
+"""   enum menu_action new_action = action;
+
+   /* Scan user inputs */""",
+"""   enum menu_action new_action = action;
+
+   /* AEon: while playing, do not escape the two-action pause screen. */
+   if (menu_is_running_quick_menu())
+   {
+      switch (action)
+      {
+         case MENU_ACTION_CANCEL:
+            return MENU_ACTION_RESUME;
+         case MENU_ACTION_UP:
+         case MENU_ACTION_DOWN:
+         case MENU_ACTION_OK:
+            return action;
+         default:
+            return MENU_ACTION_NOOP;
+      }
+   }
+
+   /* Scan user inputs */""")
