@@ -36,7 +36,7 @@ if 'should_quit_on_close()' not in s[start:end]: raise ValueError('unexpected cl
 opening=s.index('\n{',start)+2
 p.write_text(s[:opening]+ '\n   /* AEon launcher owns the library. */\n   return generic_action_ok_command(CMD_EVENT_QUIT);\n}'+s[end:])
 
-# The AEon pause screen must not expose the emulator's file browser.
+# Keep advanced settings accessible only through an explicit submenu.
 replace('menu/menu_displaylist.c',
 """static int menu_displaylist_parse_load_content_settings(
       file_list_t *list, settings_t *settings,
@@ -64,6 +64,9 @@ replace('menu/menu_displaylist.c',
             MENU_ENUM_LABEL_CLOSE_CONTENT,
             MENU_SETTING_ACTION_CLOSE, 0, 0, NULL))
          count++;
+      if (MENU_DISPLAYLIST_PARSE_SETTINGS_ENUM(list,
+            MENU_ENUM_LABEL_SETTINGS, PARSE_ACTION, false) == 0)
+         count++;
       return count;
    }
 """)
@@ -73,7 +76,7 @@ replace('menu/drivers/rgui.c',
    /* Scan user inputs */""",
 """   enum menu_action new_action = action;
 
-   /* AEon: while playing, do not escape the two-action pause screen. */
+   /* AEon: while playing, do not escape the simple pause screen. */
    if (menu_is_running_quick_menu())
    {
       switch (action)
@@ -90,3 +93,6 @@ replace('menu/drivers/rgui.c',
    }
 
    /* Scan user inputs */""")
+
+# Reuse the existing Settings action and native submenu navigation.
+replace('intl/msg_hash_us.h','MENU_ENUM_LABEL_VALUE_SETTINGS,\n   "Settings"','MENU_ENUM_LABEL_VALUE_SETTINGS,\n   "Advanced Options"')

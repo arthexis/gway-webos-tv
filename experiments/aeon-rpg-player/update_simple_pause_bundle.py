@@ -1,4 +1,4 @@
-"""Repackage installed 0.2.2 with the reviewed two-action pause frontend."""
+"""Repackage installed 0.2.2 with the reviewed simple pause frontend."""
 import argparse, hashlib, io, json, os, pathlib, subprocess, tarfile, tempfile, zipfile
 from bundle_player import arm_elf, glibc_gate, checked
 BASE='44c847b964365ad6e8a6e470eb07c04ef8e80b476a934e879c94c015ed699329'
@@ -31,7 +31,7 @@ def main():
         (stage/'aeon-menu.cfg').write_bytes(pathlib.Path(__file__).with_name('aeon-menu.cfg').read_bytes())
         meta=json.loads((stage/'appinfo.json').read_text()); meta.update(version='0.2.3',requiredACG=[])
         (stage/'appinfo.json').write_text(json.dumps(meta,indent=2)+'\n')
-        prov=json.loads((stage/'AEON-PROVENANCE.json').read_text()); prov.update(base_ipk_sha256=BASE,frontend_sha256=a.frontend_sha,frontend_revision="4c4953bf331348263cd68df0b654cf00583b437a",select_hold_ms=3000,pause_menu="resume-or-library")
+        prov=json.loads((stage/'AEON-PROVENANCE.json').read_text()); prov.update(base_ipk_sha256=BASE,frontend_sha256=a.frontend_sha,frontend_revision="4c4953bf331348263cd68df0b654cf00583b437a",select_hold_ms=3000,pause_menu="resume-library-advanced")
         (stage/'AEON-PROVENANCE.json').write_text(json.dumps(prov,indent=2)+'\n')
         node=os.environ.get('WEBOS_NODE_BIN',str(pathlib.Path.home()/'.local/opt/webos-node24/node_modules/node/bin/node'))
         cli=pathlib.Path(os.environ.get('WEBOS_CLI_DIR',str(pathlib.Path.home()/'.local/opt/webos-tools/node_modules/@webos-tools/cli/bin')))
