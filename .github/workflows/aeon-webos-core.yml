@@ -26,7 +26,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/wasi-sdk" "$RUNNER_TEMP/binaryen"
           curl -fLsS --retry 2 https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-30/wasi-sdk-30.0-x86_64-linux.tar.gz -o "$RUNNER_TEMP/wasi-sdk.tar.gz"
           curl -fLsS --retry 2 https://github.com/WebAssembly/binaryen/releases/download/version_126/binaryen-version_126-x86_64-linux.tar.gz -o "$RUNNER_TEMP/binaryen.tar.gz"
-          sha256sum "$RUNNER_TEMP/wasi-sdk.tar.gz" "$RUNNER_TEMP/binaryen.tar.gz"
+          echo "0507679dff16814b74516cd969a9b16d2ced1347388024bc7966264648c78bfb  $RUNNER_TEMP/wasi-sdk.tar.gz" | sha256sum -c
+          echo "e487e0eac1f02a6739816c617270b033e5d3f8ca90439301fd0286460322fd76  $RUNNER_TEMP/binaryen.tar.gz" | sha256sum -c
           tar -xzf "$RUNNER_TEMP/wasi-sdk.tar.gz" -C "$RUNNER_TEMP/wasi-sdk" --strip-components=1
           tar -xzf "$RUNNER_TEMP/binaryen.tar.gz" -C "$RUNNER_TEMP/binaryen" --strip-components=1
       - name: Build upstream stage one
@@ -87,7 +88,7 @@ jobs:
           cpu = 'generic-armv7-a+neon'
           endian = 'little'
           CROSS
-          meson setup build --cross-file "$RUNNER_TEMP/cross.ini" --buildtype release -Db_lto=true -Dstatic_libstdcpp=true -Dneon=true -Dlibretro=true -Dlibretro_save_states=true
+          meson setup build --cross-file "$RUNNER_TEMP/cross.ini" --buildtype release -Db_lto=false -Dstatic_libstdcpp=true -Dneon=false -Dc_args=-fno-tree-vectorize -Dcpp_args=-fno-tree-vectorize -Dlibretro=true -Dlibretro_save_states=true
       - name: Compile and inspect core (no deployment)
         working-directory: engine
         run: |
