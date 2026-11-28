@@ -20,5 +20,9 @@ else
 fi
 "$CC" -std=c99 -Wall -Wextra -Werror test_select_hold.c -o "$out/test_select_hold"
 "$out/test_select_hold"
+"$CC" -std=c99 -Wall -Wextra -Werror test_voice_chord.c -o "$out/test_voice_chord"
+"$out/test_voice_chord"
+"$CC" -std=c99 -Wall -Wextra -Werror test_voice_intent.c -o "$out/test_voice_intent"
+"$out/test_voice_intent"
 python3 -m unittest -v test_game_store test_bundle
 echo 'Host SDL smoke and input tests PASS'

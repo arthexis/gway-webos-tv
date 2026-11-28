@@ -96,3 +96,53 @@ replace('menu/drivers/rgui.c',
 
 # Reuse the existing Settings action and native submenu navigation.
 replace('intl/msg_hash_us.h','MENU_ENUM_LABEL_VALUE_SETTINGS,\n   "Settings"','MENU_ENUM_LABEL_VALUE_SETTINGS,\n   "Advanced Options"')
+
+# Both controls emit a fixed, local, per-game dry-run intent.
+for header in ('voice_chord.h','voice_intent.h'):
+    shutil.copyfile(pathlib.Path(__file__).with_name(header),root/'input'/('aeon_'+header))
+replace('runloop.c','#include "input/aeon_select_hold.h"',
+    '#include "input/aeon_select_hold.h"\n#include "input/aeon_voice_chord.h"\n#include "input/aeon_voice_intent.h"')
+replace('runloop.c','   last_input                       = current_bits;',
+"""   last_input                       = current_bits;
+   {
+      static struct aeon_voice_chord chord;
+      if (aeon_voice_chord_update(&chord,
+            BIT256_GET(last_input, RETRO_DEVICE_ID_JOYPAD_L3),
+            BIT256_GET(last_input, RETRO_DEVICE_ID_JOYPAD_R3),
+            !menu_was_alive && VIDEO_HAS_FOCUS(video_st), current_time))
+      {
+         const char *msg = aeon_voice_send('C')
+            ? "Voice Edit requested - dry run"
+            : "Voice Edit unavailable for this game";
+         runloop_msg_queue_push(msg, strlen(msg), 1, 180, false,
+               NULL, MESSAGE_QUEUE_ICON_DEFAULT, MESSAGE_QUEUE_CATEGORY_INFO);
+      }
+   }""")
+replace('menu/menu_displaylist.c',
+"""            MENU_ENUM_LABEL_SETTINGS, PARSE_ACTION, false) == 0)
+         count++;
+      return count;""",
+"""            MENU_ENUM_LABEL_SETTINGS, PARSE_ACTION, false) == 0)
+         count++;
+      if (menu_entries_append(list, "Voice Edit",
+            msg_hash_to_str(MENU_ENUM_LABEL_HELP_LIST),
+            MENU_ENUM_LABEL_HELP_LIST,
+            MENU_SETTING_ACTION_RUN, 0, 0, NULL))
+         count++;
+      return count;""")
+replace('menu/drivers/rgui.c','#include "../../configuration.h"',
+    '#include "../../configuration.h"\n#include "../../input/aeon_voice_intent.h"')
+replace('menu/drivers/rgui.c',
+"""   if (menu_is_running_quick_menu())
+   {
+      switch (action)""",
+"""   if (menu_is_running_quick_menu())
+   {
+      if (action == MENU_ACTION_OK && entry->enum_idx == MENU_ENUM_LABEL_HELP_LIST)
+      {
+         rgui_set_message(rgui, aeon_voice_send('M')
+               ? "Voice Edit requested - dry run"
+               : "Voice Edit unavailable for this game");
+         return MENU_ACTION_NOOP;
+      }
+      switch (action)""")
