@@ -16,6 +16,7 @@ from pathlib import Path
 
 from websockets.asyncio.server import serve
 
+from .aeon_voice import VoiceConnection, VoiceDenied, VoiceSession
 from .image_folders import scan_folders
 from .image_roll import image_data, images
 from .monitor import snapshot
@@ -42,8 +43,10 @@ def write_private(path, value):
             os.unlink(temporary)
 
 
-def open_local_pairing_window():
+def open_local_pairing_window(app=None):
     """Create a short-lived, single-use pairing code on the bridge host."""
+    if app not in (None, "aeon-player"):
+        raise ValueError("Unsupported pairing application")
     code = f"{secrets.randbelow(1000000):06d}"
     salt = secrets.token_hex(16)
     write_private(
@@ -53,6 +56,7 @@ def open_local_pairing_window():
             "salt": salt,
             "expires": time.time() + 120,
             "attempts_remaining": 5,
+            **({"app": app} if app else {}),
         },
     )
     return code
@@ -78,8 +82,9 @@ def button_name(path, code):
 
 
 class Bridge:
-    def __init__(self, directory, names_path=None):
+    def __init__(self, directory, names_path=None, voice=None):
         self.directory = directory
+        self.voice = voice if voice is not None else VoiceSession()
         self.names_path = names_path if names_path is not None else button_names_path()
         self.lock = asyncio.Lock()
         self.monitor_lock = asyncio.Lock()
@@ -129,11 +134,65 @@ class Bridge:
         except (OSError, ValueError, TypeError, AttributeError):
             return False
 
+    def voice_authorized(self, digest):
+        # Unlike legacy button auth, a dedicated explicit scope is mandatory.
+        try:
+            scoped = json.loads((self.directory / "credential.json").read_text()).get("scoped", {})
+            return isinstance(scoped, dict) and isinstance(scoped.get(digest), list) and "aeon.voice" in scoped[digest]
+        except (OSError, ValueError, TypeError, AttributeError):
+            return False
+
+    async def voice_handler(self, ws, message=None):
+        connection = secrets.token_hex(16)
+        try:
+            if message is None:
+                message = json.loads(await asyncio.wait_for(ws.recv(), 10))
+            if not isinstance(message, dict) or set(message) != {"type", "credential"}:
+                await ws.close(1008, "Authentication required")
+                return
+            value = message["credential"]
+            if message["type"] not in ("auth", "aeon.voice.auth") or not isinstance(value, str):
+                await ws.close(1008, "Authentication required")
+                return
+            digest = hashlib.sha256(value.encode()).hexdigest()
+            if not self.voice_authorized(digest):
+                await ws.close(1008, "Capability denied")
+                return
+            client = VoiceConnection(self.voice, digest, connection)
+            await ws.send(json.dumps({"type": "aeon.voice.ready", "connection": connection}))
+            while True:
+                await self.voice.expire()
+                if not self.voice_authorized(digest):
+                    await ws.close(1008, "Credential revoked")
+                    return
+                try:
+                    raw = await asyncio.wait_for(ws.recv(), 1)
+                except asyncio.TimeoutError:
+                    continue
+                if not self.voice_authorized(digest):
+                    await ws.close(1008, "Credential revoked")
+                    return
+                try:
+                    response = await client.dispatch(json.loads(raw))
+                except VoiceDenied as exc:
+                    response = {"type": "aeon.voice.error", "error": str(exc)}
+                await ws.send(json.dumps(response))
+        except (ValueError, OSError, asyncio.TimeoutError):
+            await ws.close(1008, "Invalid voice request")
+        finally:
+            await self.voice.disconnect(connection)
+
     async def handler(self, ws):
+        if ws.request.path == "/aeon/voice":
+            await self.voice_handler(ws)
+            return
         try:
             raw = await asyncio.wait_for(ws.recv(), 10)
             message = json.loads(raw)
             if not isinstance(message, dict):
+                return
+            if message.get("type") == "aeon.voice.auth":
+                await self.voice_handler(ws, message)
                 return
             if message.get("type") == "admin.arm_pairing":
                 if ws.request.path != "/admin/pair":
@@ -170,9 +229,10 @@ class Bridge:
                     )
                 await ws.send(json.dumps({"type": "pairing.open", "expires_in": 120}))
                 return
-            if message.get("type") == "pair":
+            if message.get("type") in ("pair", "aeon.pair"):
                 async with self.lock:
                     value = message.get("secret")
+                    app = message.get("app", "remote-test")
                     pending_path = self.directory / "pending-pairing.json"
                     valid = False
                     try:
@@ -197,15 +257,17 @@ class Bridge:
                                 write_private(pending_path, pending)
                             if isinstance(value, str) and re.fullmatch(r"[0-9]{6}", value):
                                 digest = hashlib.sha256((salt + value).encode()).hexdigest()
-                                valid = hmac.compare_digest(digest, expected)
+                                valid = hmac.compare_digest(digest, expected) and (
+                                    pending.get("app") == app == "aeon-player" and (ws.request.path == "/aeon/pair" or message.get("type") == "aeon.pair")
+                                    or pending.get("app") is None and app in ("remote-test", "gway-monitor") and ws.request.path != "/aeon/pair" and message.get("type") == "pair"
+                                )
                     except (OSError, ValueError, KeyError, TypeError):
                         pass
                     if not valid:
                         await ws.close(1008, "Pairing denied")
                         return
                     pending_path.unlink(missing_ok=True)
-                    app = message.get("app", "remote-test")
-                    if app not in ("remote-test", "gway-monitor"):
+                    if app not in ("remote-test", "gway-monitor", "aeon-player"):
                         await ws.close(1008, "Unknown application")
                         return
                     credential = secrets.token_urlsafe(32)
@@ -223,6 +285,7 @@ class Bridge:
                     if not isinstance(scoped, dict):
                         scoped = {}
                     scoped[session_digest] = (
+                        ["aeon.voice"] if app == "aeon-player" else
                         ["monitor.read", "deployment.retry"] if app == "gway-monitor" else ["button.pressed"]
                     )
                     write_private(
@@ -233,7 +296,8 @@ class Bridge:
                             "scoped": scoped,
                         },
                     )
-                    (self.directory / "last-button.json").unlink(missing_ok=True)
+                    if app != "aeon-player":
+                        (self.directory / "last-button.json").unlink(missing_ok=True)
                 await ws.send(json.dumps({"type": "paired", "credential": credential}))
             elif message.get("type") == "auth":
                 value = message.get("credential")
@@ -360,7 +424,21 @@ async def run(args):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(args.cert, args.key)
-    bridge = Bridge(state_directory())
+    directory = state_directory()
+    voice = None
+    if args.aeon_voice_source:
+        from .aeon_scoped_voice import ScopedVoice
+        from .client import TV
+        from .state import default_state_path, load_state
+        home = Path.home()
+        backend = ScopedVoice(
+            directory / "aeon-voice-sessions", Path(args.aeon_voice_source).resolve(),
+            home / ".local/share/gway-agent-ops/voice-runtime",
+            home / ".codex/auth.json", Path("/run/user") / str(os.getuid()) / "pulse",
+            lambda: TV(load_state(default_state_path()), timeout=4),
+        )
+        voice = VoiceSession(backend)
+    bridge = Bridge(directory, voice=voice)
     async with serve(
         bridge.handler, args.listen, args.port, ssl=context, max_size=2048, max_queue=8
     ):
@@ -374,6 +452,7 @@ def main():
     parser.add_argument("--port", type=int, default=8769)
     parser.add_argument("--cert", required=True, help="TV-trusted TLS certificate chain")
     parser.add_argument("--key", required=True, help="TLS private key")
+    parser.add_argument("--aeon-voice-source", type=Path, help="Explicitly enable scoped voice for verified Lantern Gate source")
     args = parser.parse_args()
     try:
         asyncio.run(run(args))

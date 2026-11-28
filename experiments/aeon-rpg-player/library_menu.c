@@ -47,7 +47,7 @@ static void label(SDL_Renderer*r,int x,int y,const char *s,int k,int red,int gre
         for(int j=0;j<7;j++)for(int i=0;i<5;i++)if(font[c][j]&(1<<(4-i)))rect(r,x+i*k,y+j*k,k,k,red,green,blue);
     }
 }
-static void draw(SDL_Renderer*r,int selected) {
+static void draw(SDL_Renderer*r,int selected,int voice) {
     rect(r,0,0,960,540,13,22,38);
     label(r,48,35,"AEON RPG PLAYER",4,111,228,187);
     label(r,48,79,"CHOOSE YOUR ADVENTURE",2,196,209,224);
@@ -60,6 +60,7 @@ static void draw(SDL_Renderer*r,int selected) {
     }
     if(!count)label(r,48,160,"NO GAMES AVAILABLE",3,220,220,220);
     label(r,48,488,"D-PAD MOVE   A SELECT   B EXIT",2,181,204,220);
+    if(voice)label(r,48,516,"X / Y VOICE PAIRING",2,111,228,187);
     SDL_RenderPresent(r);
 }
 static SDL_GameController *open_pad(void) {
@@ -72,7 +73,8 @@ static SDL_GameController *open_pad(void) {
 static int move(int pos,int delta) {
     return count?(pos+delta+count)%count:0;
 }
-int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,void *context) {
+#include "voice_pair_ui.h"
+int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,aeon_pair_fn pair,void *context) {
     char built[PATH_MAX];
     count=0;
     add(app,"fixture/Game.ini","VX ACE TEST");
@@ -96,7 +98,7 @@ int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,void *
         SDL_Event e;
         if(!pad && SDL_GetTicks()-last_scan>1000){pad=open_pad();last_scan=SDL_GetTicks();}
         if(dirty){
-            draw(r,selected);
+            draw(r,selected,pair!=NULL);
             if(failed){label(r,48,452,"GAME COULD NOT START - TRY AGAIN",2,244,149,141);SDL_RenderPresent(r);}
             dirty=0;
         }
@@ -112,12 +114,13 @@ int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,void *
         }
         if(e.type==SDL_CONTROLLERDEVICEADDED && !pad)pad=open_pad();
         if(!focus)continue;
-        int delta=0,confirm=0,cancel=0;
+        int delta=0,confirm=0,cancel=0,pairing=0;
         if(e.type==SDL_KEYDOWN){
             switch(e.key.keysym.sym){
             case SDLK_UP:case SDLK_LEFT:delta=-1;break;
             case SDLK_DOWN:case SDLK_RIGHT:delta=1;break;
             case SDLK_RETURN:case SDLK_SPACE:case SDLK_z:confirm=!e.key.repeat;break;
+            case SDLK_p:pairing=!e.key.repeat;break;
             case SDLK_ESCAPE:case SDLK_BACKSPACE:case SDLK_x:cancel=!e.key.repeat;break;
             default:break;
             }
@@ -126,6 +129,7 @@ int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,void *
             switch(e.cbutton.button){
             case SDL_CONTROLLER_BUTTON_DPAD_UP:case SDL_CONTROLLER_BUTTON_DPAD_LEFT:delta=-1;break;
             case SDL_CONTROLLER_BUTTON_DPAD_DOWN:case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:delta=1;break;
+            case SDL_CONTROLLER_BUTTON_X:case SDL_CONTROLLER_BUTTON_Y:pairing=1;break;
             case SDL_CONTROLLER_BUTTON_A:case SDL_CONTROLLER_BUTTON_B:confirm=e.cbutton.button==SDL_CONTROLLER_BUTTON_B;cancel=!confirm;break;
             default:break;
             }
@@ -135,6 +139,7 @@ int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,void *
             if(next && next!=axis)delta=next;
             if(next || abs(e.caxis.value)<8000)axis=next;
         }
+        if(pairing&&pair){pairing_screen(r,pad,pair,context);dirty=1;continue;}
         if(delta){selected=move(selected,delta);dirty=1;}
         if(cancel)action=0;
         if(confirm&&count){

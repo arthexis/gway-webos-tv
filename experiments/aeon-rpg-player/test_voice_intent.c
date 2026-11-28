@@ -10,6 +10,13 @@ int main(void) {
     snprintf(buf,sizeof buf,"%d",fd[1]);assert(!setenv(AEON_VOICE_FD,buf,1));
     assert(!aeon_voice_send('X'));
     assert(aeon_voice_send('M')); assert(aeon_voice_receive(fd[0],&source)==1 && source=='M');
+    assert(send(fd[0],"P",1,0)==1);
+    assert(aeon_voice_state()=='P');
+    assert(send(fd[0],"L",1,0)==1);
+    assert(aeon_voice_state()=='L');
+    assert(aeon_voice_state()=='L');
+    assert(send(fd[0],"S",1,0)==1);
+    assert(aeon_voice_state()=='S');
     assert(aeon_voice_send('C')); assert(aeon_voice_receive(fd[0],&source)==1 && source=='C');
     assert(send(fd[1],"MC",2,0)==2); assert(aeon_voice_receive(fd[0],&source)==-1);
     assert(aeon_voice_receive(fd[0],&source)==0);

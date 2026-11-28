@@ -6,6 +6,26 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #define AEON_VOICE_FD "AEON_VOICE_EDIT_FD"
+static inline int aeon_voice_fd(void) {
+    const char *s=getenv(AEON_VOICE_FD);
+    char *end;long fd;
+    if(!s || !*s)return -1;
+    errno=0;fd=strtol(s,&end,10);
+    if(errno || *end || fd<3 || fd>INT_MAX)return -1;
+    return (int)fd;
+}
+static inline char aeon_voice_state(void) {
+    static char state='P';
+    int fd=aeon_voice_fd();
+    if(fd<0)return 'U';
+    for(int i=0;i<16;i++){
+        char c;ssize_t n=recv(fd,&c,1,MSG_DONTWAIT);
+        if(n==1 && (c=='L'||c=='S'||c=='P'||c=='U'))state=c;
+        else if(n==0 || n==1 || (n<0 && errno!=EAGAIN && errno!=EWOULDBLOCK && errno!=EINTR)){state='U';break;}
+        else break;
+    }
+    return state;
+}
 static inline int aeon_voice_send(char source) {
     const char *s=getenv(AEON_VOICE_FD);
     char *end; long fd;
