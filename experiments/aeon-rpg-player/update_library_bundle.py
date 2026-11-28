@@ -30,13 +30,13 @@ def main():
         checked(stage/'cores/mkxp-z_libretro.so',CORE)
         (stage/'launcher').write_bytes(launcher)
         (stage/'library').mkdir(); (stage/'library/AEon-Lantern-Gate.mkxpz').write_bytes(demo)
-        meta=json.loads((stage/'appinfo.json').read_text()); meta.update(version='0.2.0',requiredACG=[])
+        meta=json.loads((stage/'appinfo.json').read_text()); meta.update(version='0.2.1',requiredACG=[])
         (stage/'appinfo.json').write_text(json.dumps(meta,indent=2)+'\n')
         prov=json.loads((stage/'AEON-PROVENANCE.json').read_text()); prov.update(base_ipk_sha256=BASE,launcher_sha256=a.launcher_sha,library_demo_sha256=a.demo_sha)
         (stage/'AEON-PROVENANCE.json').write_text(json.dumps(prov,indent=2)+'\n')
         node=os.environ.get('WEBOS_NODE_BIN',str(pathlib.Path.home()/'.local/opt/webos-node24/node_modules/node/bin/node'))
         cli=pathlib.Path(os.environ.get('WEBOS_CLI_DIR',str(pathlib.Path.home()/'.local/opt/webos-tools/node_modules/@webos-tools/cli/bin')))
         subprocess.run([node,str(cli/'ares-package.js'),str(stage),'-o',str(out)],check=True,env={**os.environ,'NODE_OPTIONS':'--no-addons'})
-    ipk=out/'com.arthexis.aeon.rpgplayer_0.2.0_arm.ipk'
+    ipk=out/'com.arthexis.aeon.rpgplayer_0.2.1_arm.ipk'
     (out/'SHA256SUMS').write_text(hashlib.sha256(ipk.read_bytes()).hexdigest()+'  '+ipk.name+'\n')
 if __name__=='__main__': main()

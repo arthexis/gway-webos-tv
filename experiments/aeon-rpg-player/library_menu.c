@@ -72,7 +72,7 @@ static SDL_GameController *open_pad(void) {
 static int move(int pos,int delta) {
     return count?(pos+delta+count)%count:0;
 }
-int aeon_library_menu(const char *app,const char *games,char *out,size_t size) {
+int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,void *context) {
     char built[PATH_MAX];
     count=0;
     add(app,"fixture/Game.ini","VX ACE TEST");
@@ -86,7 +86,7 @@ int aeon_library_menu(const char *app,const char *games,char *out,size_t size) {
     if(!r){if(w)SDL_DestroyWindow(w);SDL_Quit();return -1;}
     SDL_RenderSetLogicalSize(r,960,540);
     SDL_GameController *pad=open_pad();
-    int selected=0,action=-1,focus=1,axis=0,dirty=1;
+    int selected=0,action=-1,focus=1,axis=0,dirty=1,failed=0;
     Uint32 last_scan=SDL_GetTicks();
 #ifdef AEON_MENU_TEST
     SDL_Event test={0};test.type=SDL_KEYDOWN;test.key.keysym.sym=SDLK_DOWN;SDL_PushEvent(&test);
@@ -95,7 +95,11 @@ int aeon_library_menu(const char *app,const char *games,char *out,size_t size) {
     while(action<0){
         SDL_Event e;
         if(!pad && SDL_GetTicks()-last_scan>1000){pad=open_pad();last_scan=SDL_GetTicks();}
-        if(dirty){draw(r,selected);dirty=0;}
+        if(dirty){
+            draw(r,selected);
+            if(failed){label(r,48,452,"GAME COULD NOT START - TRY AGAIN",2,244,149,141);SDL_RenderPresent(r);}
+            dirty=0;
+        }
         if(!SDL_WaitEventTimeout(&e,100))continue;
         if(e.type==SDL_QUIT)action=0;
         if(e.type==SDL_WINDOWEVENT){
@@ -134,12 +138,26 @@ int aeon_library_menu(const char *app,const char *games,char *out,size_t size) {
         if(delta){selected=move(selected,delta);dirty=1;}
         if(cancel)action=0;
         if(confirm&&count){
-            size_t len=strlen(entries[selected].path);
-            if(len>=size)action=0;
-            else{memcpy(out,entries[selected].path,len+1);action=1;}
+            if(pad){SDL_GameControllerClose(pad);pad=NULL;}
+            rect(r,0,0,960,540,13,22,38);
+            label(r,48,35,"AEON RPG PLAYER",4,111,228,187);
+            label(r,48,225,"LOADING GAME...",3,237,243,248);
+            label(r,48,270,entries[selected].title,2,196,209,224);
+            SDL_RenderPresent(r);
+            int result=play(entries[selected].path,context);
+#ifdef AEON_MENU_TEST
+            action=result<0?-2:0;
+            break;
+#endif
+            if(result==1){action=0;break;}
+            failed=result<0;
+            SDL_FlushEvents(SDL_KEYDOWN,SDL_KEYUP);
+            SDL_FlushEvents(SDL_CONTROLLERAXISMOTION,SDL_CONTROLLERBUTTONUP);
+            SDL_RaiseWindow(w);
+            pad=open_pad();axis=0;focus=1;dirty=1;
         }
     }
     if(pad)SDL_GameControllerClose(pad);
     SDL_DestroyRenderer(r);SDL_DestroyWindow(w);SDL_Quit();
-    return action;
+    return action<0?-1:0;
 }

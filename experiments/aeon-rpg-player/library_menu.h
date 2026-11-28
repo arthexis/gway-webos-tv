@@ -1,6 +1,6 @@
 #ifndef AEON_LIBRARY_MENU_H
 #define AEON_LIBRARY_MENU_H
-#include <stddef.h>
-/* Returns 1 with a selected path, 0 on cancel, -1 on error. */
-int aeon_library_menu(const char *app,const char *games,char *out,size_t size);
+/* Runs a game while keeping the launcher surface alive. */
+typedef int (*aeon_play_fn)(const char *content, void *context);
+int aeon_library_menu(const char *app,const char *games,aeon_play_fn play,void *context);
 #endif
