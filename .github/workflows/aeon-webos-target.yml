@@ -41,3 +41,28 @@ jobs:
           name: aeon-webos-arm-input-probe
           path: ${{ runner.temp }}/aeon-probe/
           if-no-files-found: error
+      - name: Build player launcher and original fixture
+        run: |
+          sudo apt-get update && sudo apt-get install -y ruby
+          d="$RUNNER_TEMP/player-inputs"
+          mkdir "$d"
+          "$WEBOS_SDK/bin/arm-webos-linux-gnueabi-gcc" -std=c99 -Wall -Wextra -Werror -O2 experiments/aeon-rpg-player/launcher.c -o "$d/launcher"
+          readelf -h "$d/launcher" | grep -E 'Class:.*ELF32'
+          readelf -h "$d/launcher" | grep -E 'Machine:.*ARM$'
+          readelf -l "$d/launcher" | grep -F '/lib/ld-linux.so.3]'
+          ruby experiments/aeon-rpg-player/generate_fixture.rb "$RUNNER_TEMP/fixture"
+          python3 - "$RUNNER_TEMP/fixture" "$d/fixture.zip" <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile(sys.argv[2], 'w') as z:
+              for name in ('Game.ini', 'Data/Scripts.rvdata2'):
+                  info=zipfile.ZipInfo(name, (1980,1,1,0,0,0))
+                  z.writestr(info, (Path(sys.argv[1])/name).read_bytes())
+          PY
+          cd "$d"
+          sha256sum launcher fixture.zip > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aeon-webos-player-inputs
+          path: ${{ runner.temp }}/player-inputs/
+          if-no-files-found: error

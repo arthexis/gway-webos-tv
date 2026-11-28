@@ -47,3 +47,23 @@ PR #52 revision 68ba44c49e080249996fbbf91e225050d39487d0: all three CI runs pass
 ### Engine candidate
 
 Upstream mkxp-z libretro PR revision ef4d336850bf749b531386522109a165c002354b had a successful LR webOS job 73507352989 (run 25087335805 overall failed, no reusable webOS artifact). This is a separate experimental revision from the existing standalone checkout a8f9d9e. The new isolated core workflow reproduces its two-stage build with version-pinned WASI SDK 30 and Binaryen 126 (download hashes logged, not independently pinned yet), previously verified ARM SDK, ABI checks and libretro exports. No candidate core is deployed or claimed compatible until build, license/dependencies and native frontend/game acceptance pass. No proprietary assets are distributed.
+
+### First AEon player bundle (private lab evaluation)
+
+The operator located the TV's native Bluetooth controller pairing UI. Use that UI; in-app pairing/privileged services are no longer required for this increment. Actual 8BitDo input is still unverified. Do not change Bluetooth/audio configuration from the app.
+
+The original core run 46004673740 passed WASI stage one and ARM Meson configuration, but GCC crashed in FLAC window.c (vector multiply RTL). The corrective workflow disables NEON optimization, compiler tree vectorization and LTO, and verifies observed stage-one archive hashes. These are build compatibility changes, not a claim that audio works. The separate native frontend is webosbrew/RetroArch v1.22.2 ARM GLES2 IPK, upstream SHA256 `0b8ead78b49f02097986a14776d1d90ce856184a11290e8c3640f1001b02d4e3`; actual package downloaded and verified. ARM ELF EABI5 soft-float and GLIBC <= 2.31 checks passed for frontend and its three included libraries. TV getconf confirmed glibc 2.31. The package is distinct from stock RetroArch and existing GWay apps.
+
+Target CI produces `aeon-webos-player-inputs` (launcher and reproducible original fixture, with hashes) separately from the existing probe. Core CI produces `aeon-webos-arm-core-candidate` if successful. Download exact artifacts from successful reviewed revisions, verify the artifact digest and each SHA256SUMS, review core dependencies/exports and target GLIBC, and acquire RetroArch COPYING from the pinned tag. The operator-local assembly tool extracts only allowlisted files from the pinned frontend IPK, verifies component SHA-256 and ARM32 EABI/GLIBC, adds original icon, launcher, test fixture, license files and provenance, then calls the existing ares-package CLI:
+
+```sh
+python3 experiments/aeon-rpg-player/bundle_player.py \
+  --frontend /private/inputs/com.retroarch.webos_1.22.2_arm.ipk \
+  --core /private/inputs/mkxp-z_libretro.so --core-sha <verified-core-sha256> \
+  --launcher /private/inputs/launcher --launcher-sha <verified-launcher-sha256> \
+  --fixture /private/inputs/fixture.zip --fixture-sha <verified-fixture-sha256> \
+  --frontend-license /private/inputs/RetroArch-COPYING \
+  --core-license /private/inputs/mkxp-z-COPYING --output /private/new-output
+```
+
+The expected package is `com.arthexis.aeon.rpgplayer_0.1.0_arm.ipk`, assembled locally only (no automatic deployment or public combined package). The launcher boots the fixture through RetroArch, initializes separate `system`, `saves`, `states`, `games` and config paths under `/media/internal/.aeon-rpg-player` if writable, otherwise HOME. It refuses non-private or wrong-owner data directories; does not overwrite config. On the TV's developer SSH session `/media/developer` is not writable and `/media/internal` is writable; actual native jail write access and persistence across update/reinstall still require acceptance. RetroArch's content browser is the initial library interface; custom library UI, host store transport, secure updates and physical save/input tests are still open. The game checkout `dd18e02` has uncommitted RGSS script changes, lacks Audio/Graphics directories and declares RPGVXAce RTP. Do not distribute uncommitted game data or copyrighted RTP in CI; after fixture acceptance use an operator-reviewed private release and legally available RTP. RetroArch GPLv3 and core GPLv2 licensing and corresponding-source obligations need review before redistribution; this bundle is for private lab evaluation only.
